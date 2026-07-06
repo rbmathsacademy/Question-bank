@@ -482,18 +482,27 @@ export async function PUT(
             return NextResponse.json({ error: 'Test not found' }, { status: 404 });
         }
 
-        // Build question lookup from the ATTEMPT's questions (which may be a subset)
-        // This ensures scoring uses the actually-served questions, not the full pool
-        const sourceQuestions = (attempt.questions && attempt.questions.length > 0)
-            ? attempt.questions
-            : test.questions;
-
+                // Reconstruct the student's exact shuffled test dynamically
+        let sourceQuestions = [...test.questions];
+        if (test.config?.maxQuestionsToAttempt || test.config?.shuffleQuestions) {
+            const seedString = `${student.phoneNumber}_${testId}`;
+            const randomFunc = getSeededRandom(seedString);
+            sourceQuestions = seededShuffleArray(sourceQuestions, randomFunc);
+            if (test.config?.maxQuestionsToAttempt && test.config.maxQuestionsToAttempt > 0) {
+                sourceQuestions = sourceQuestions.slice(0, test.config.maxQuestionsToAttempt);
+            }
+        }
+        
         const questionMap = new Map<string, any>();
-        for (const q of sourceQuestions) {
-            questionMap.set(q.id, q);
-            if (q.type === 'comprehension' && q.subQuestions) {
-                for (const sq of q.subQuestions) {
-                    questionMap.set(sq.id, sq);
+        for (let q of sourceQuestions) {
+            q = typeof q.toObject === 'function' ? q.toObject() : JSON.parse(JSON.stringify(q));
+            const processedQ = shuffleOptionsForQuestion(q, student.phoneNumber);
+            questionMap.set(processedQ.id, processedQ);
+            if (processedQ.type === 'comprehension' && processedQ.subQuestions) {
+                for (let sq of processedQ.subQuestions) {
+                    sq = typeof sq.toObject === 'function' ? sq.toObject() : JSON.parse(JSON.stringify(sq));
+                    const processedSQ = shuffleOptionsForQuestion(sq, student.phoneNumber);
+                    questionMap.set(processedSQ.id, processedSQ);
                 }
             }
         }
