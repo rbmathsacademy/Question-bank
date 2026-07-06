@@ -205,7 +205,14 @@ export async function PUT(request: NextRequest) {
                             // If the admin explicitly checked "Award Grace Marks" (updatedQ.isGrace === true), we set it to true.
                             // Otherwise, we PRESERVE the existing grace state so we don't accidentally revoke grace marks awarded in previous edits.
                             const finalIsGrace = updatedQ.isGrace ? true : (qObj.isGrace || false);
-                            return { ...qObj, ...updatedQ, isGrace: finalIsGrace };
+                            return { 
+                                ...qObj, 
+                                ...updatedQ, 
+                                isGrace: finalIsGrace,
+                                // PRESERVE SHUFFLED OPTIONS AND CORRECT INDICES
+                                options: qObj.options,
+                                correctIndices: qObj.correctIndices
+                            };
                         }
                         return q;
                     });
