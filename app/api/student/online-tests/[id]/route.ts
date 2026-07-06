@@ -93,9 +93,20 @@ export async function GET(
 
                 let totalScore = 0;
                 const gradedAnswers: any[] = [];
-                const attemptAnswers = attempt.answers || [];
+                const attemptAnswersMap = new Map();
+                for (const a of (attempt.answers || [])) {
+                    attemptAnswersMap.set(a.questionId, a);
+                }
+                const normalizedAnswers = [];
+                for (const qId of questionMap.keys()) {
+                    if (attemptAnswersMap.has(qId)) {
+                        normalizedAnswers.push(attemptAnswersMap.get(qId));
+                    } else {
+                        normalizedAnswers.push({ questionId: qId, answer: null, timeTaken: 0 });
+                    }
+                }
 
-                for (const ans of attemptAnswers) {
+                for (const ans of normalizedAnswers) {
                     const question = questionMap.get(ans.questionId);
                     if (!question) {
                         gradedAnswers.push({ questionId: ans.questionId, answer: ans.answer, isCorrect: false, marksAwarded: 0 });
@@ -140,8 +151,10 @@ export async function GET(
 
                     if (ans.answer === null || ans.answer === undefined || ans.answer === '' ||
                         (Array.isArray(ans.answer) && ans.answer.length === 0)) {
-                        marksAwarded = 0;
-                        isCorrect = false;
+                        if (!question.isGrace) {
+                            marksAwarded = 0;
+                            isCorrect = false;
+                        }
                     }
                     marksAwarded = Number(marksAwarded.toFixed(2));
                     totalScore += marksAwarded;
@@ -195,16 +208,41 @@ export async function GET(
             }, { status: 400 });
         }
 
-        // Determine source of questions
-        let sourceQuestions = [];
-        if (attempt && attempt.questions && attempt.questions.length > 0) {
-            sourceQuestions = attempt.questions;
-        } else {
-            sourceQuestions = test.questions;
+        // Prepare questions (deterministic layout)
+        let attemptQuestions = test.questions.map((q: any) => {
+            const qObj = q.toObject ? q.toObject() : JSON.parse(JSON.stringify(q));
+            if (qObj.subQuestions) {
+                qObj.subQuestions = qObj.subQuestions.map((sq: any) =>
+                    sq.toObject ? sq.toObject() : { ...sq, options: sq.options ? [...sq.options] : [], correctIndices: sq.correctIndices ? [...sq.correctIndices] : [] }
+                );
+            }
+            if (qObj.options) qObj.options = [...qObj.options];
+            if (qObj.correctIndices) qObj.correctIndices = [...qObj.correctIndices];
+            return qObj;
+        });
+
+        if (test.config?.maxQuestionsToAttempt || test.config?.shuffleQuestions) {
+            const seedString = `${student.phoneNumber}_${testId}`;
+            const randomFunc = getSeededRandom(seedString);
+            attemptQuestions = seededShuffleArray(attemptQuestions, randomFunc);
         }
 
+        if (test.config?.maxQuestionsToAttempt && test.config.maxQuestionsToAttempt > 0) {
+            attemptQuestions = attemptQuestions.slice(0, test.config.maxQuestionsToAttempt);
+        }
+
+        attemptQuestions = attemptQuestions.map((q: any) => {
+            let shuffledQ = shuffleOptionsForQuestion(q, student.phoneNumber);
+            if (shuffledQ.type === 'comprehension' && shuffledQ.subQuestions) {
+                shuffledQ.subQuestions = shuffledQ.subQuestions.map((sq: any) => {
+                    return shuffleOptionsForQuestion(sq, student.phoneNumber);
+                });
+            }
+            return shuffledQ;
+        });
+
         // Strip answers from questions
-        let questions = sourceQuestions.map((q: any) => {
+        let questions = attemptQuestions.map((q: any) => {
             const stripped: any = {
                 id: q.id,
                 text: q.text,
@@ -255,11 +293,7 @@ export async function GET(
             return stripped;
         });
 
-        // Shuffle questions if configured AND using original test questions (not attempt snapshot)
-        // If it's an attempt snapshot, order is preserved from creation
-        if (!attempt && test.config?.shuffleQuestions) {
-            
-        }
+
 
         return NextResponse.json({
             test: {
@@ -374,14 +408,14 @@ export async function POST(
         const batchName = studentCourses[0] || '';
         attempt = new StudentTestAttempt({
             testId,
-            studentEmail: student.phoneNumber, // Using phone as identifier
+            studentEmail: student.phoneNumber,
             studentPhone: student.phoneNumber,
             studentName: student.studentName || (dbStudent as any)?.name || 'Unknown',
             batchName,
             status: 'in_progress',
             startedAt: new Date(),
             answers: [],
-            questions: attemptQuestions, // Store the snapshot of questions!
+            questions: [], // We no longer save question snapshots
             score: 0,
             percentage: 0,
             timeSpent: 0,
@@ -511,7 +545,20 @@ export async function PUT(
         let totalScore = 0;
         const gradedAnswers: any[] = [];
 
-        for (const ans of answers) {
+        const attemptAnswersMap = new Map();
+        for (const a of (answers || [])) {
+            attemptAnswersMap.set(a.questionId, a);
+        }
+        const normalizedAnswers = [];
+        for (const qId of questionMap.keys()) {
+            if (attemptAnswersMap.has(qId)) {
+                normalizedAnswers.push(attemptAnswersMap.get(qId));
+            } else {
+                normalizedAnswers.push({ questionId: qId, answer: null, timeTaken: 0 });
+            }
+        }
+
+        for (const ans of normalizedAnswers) {
             const question = questionMap.get(ans.questionId);
             if (!question) {
                 gradedAnswers.push({ questionId: ans.questionId, answer: ans.answer, isCorrect: false, marksAwarded: 0 });
@@ -561,8 +608,10 @@ export async function PUT(
             if (ans.answer === null || ans.answer === undefined || ans.answer === '' ||
                 (Array.isArray(ans.answer) && ans.answer.length === 0)) {
                 // Unanswered: no marks, no negative
-                marksAwarded = 0;
-                isCorrect = false;
+                if (!question.isGrace) {
+                    marksAwarded = 0;
+                    isCorrect = false;
+                }
             }
 
             marksAwarded = Number(marksAwarded.toFixed(2));

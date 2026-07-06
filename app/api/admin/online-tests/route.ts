@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/db';
 import OnlineTest from '@/models/OnlineTest';
 import User from '@/models/User';
+import { shuffleOptionsForQuestion } from '@/lib/seededRandom';
 
 // GET - List all tests
 export async function GET(request: NextRequest) {
@@ -195,37 +196,30 @@ export async function PUT(request: NextRequest) {
             for (const attempt of attempts) {
                 let newScore = 0;
 
-                // If attempt has snapshot 'questions', update them.
-                if (attempt.questions && attempt.questions.length > 0) {
-                    attempt.questions = attempt.questions.map((q: any) => {
-                        const updatedQ = newQuestionsMap.get(q.id);
-                        if (updatedQ) {
-                            // Convert Mongoose subdocument to plain object before spreading
-                            const qObj = typeof q.toObject === 'function' ? q.toObject() : q;
-                            // If the admin explicitly checked "Award Grace Marks" (updatedQ.isGrace === true), we set it to true.
-                            // Otherwise, we PRESERVE the existing grace state so we don't accidentally revoke grace marks awarded in previous edits.
-                            const finalIsGrace = updatedQ.isGrace ? true : (qObj.isGrace || false);
-                            return { 
-                                ...qObj, 
-                                ...updatedQ, 
-                                isGrace: finalIsGrace,
-                                // PRESERVE SHUFFLED OPTIONS AND CORRECT INDICES
-                                options: qObj.options,
-                                correctIndices: qObj.correctIndices
-                            };
-                        }
-                        return q;
-                    });
-                    attempt.markModified('questions');
-                }
-
                 // Track whether any per-question isGrace flags are active
                 let hasPerQuestionGrace = false;
 
-                // Re-grade answers
-                attempt.answers = attempt.answers.map((ans: any) => {
-                    const qDef = newQuestionsMap.get(ans.questionId);
-                    if (!qDef) return ans; // Question removed? Keep old status.
+                const attemptAnswersMap = new Map();
+                for (const a of (attempt.answers || [])) {
+                    attemptAnswersMap.set(a.questionId, a);
+                }
+                const normalizedAnswers = [];
+                for (const qId of newQuestionsMap.keys()) {
+                    if (attemptAnswersMap.has(qId)) {
+                        normalizedAnswers.push(attemptAnswersMap.get(qId));
+                    } else {
+                        normalizedAnswers.push({ questionId: qId, answer: null, timeTaken: 0 });
+                    }
+                }
+
+                // Re-grade answers using deterministic shuffling
+                attempt.answers = normalizedAnswers.map((ans: any) => {
+                    const rawQDef = newQuestionsMap.get(ans.questionId);
+                    if (!rawQDef) return ans; // Question removed? Keep old status.
+
+                    // Dynamically reconstruct what the student saw
+                    const qObj = typeof rawQDef.toObject === 'function' ? rawQDef.toObject() : JSON.parse(JSON.stringify(rawQDef));
+                    const qDef = shuffleOptionsForQuestion(qObj, attempt.studentPhone);
 
                     let isCorrect = false;
                     let marksAwarded = 0;
@@ -310,6 +304,7 @@ export async function PUT(request: NextRequest) {
 
                 if (currentTotalMarks === 0) currentTotalMarks = 1; // Prevent div/0
 
+                newScore = Math.max(0, newScore); // Ensure score doesn't go below 0
                 attempt.score = Number(newScore.toFixed(2));
                 attempt.percentage = Math.round((attempt.score / currentTotalMarks) * 100);
 

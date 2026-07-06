@@ -4,6 +4,7 @@ import dbConnect from '@/lib/db';
 import OnlineTest from '@/models/OnlineTest';
 import StudentTestAttempt from '@/models/StudentTestAttempt';
 import BatchStudent from '@/models/BatchStudent';
+import { seededShuffleArray, getSeededRandom, shuffleOptionsForQuestion } from '@/lib/seededRandom';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-dev-secret-change-this-in-prod';
 const key = new TextEncoder().encode(JWT_SECRET);
@@ -97,10 +98,20 @@ export async function GET(
             }, { status: 200 });
         }
 
-        // Build source questions (accounts for random subsets)
-        const sourceQuestions = (attempt.questions && attempt.questions.length > 0)
-            ? attempt.questions
-            : test.questions;
+        // Build source questions dynamically
+        let sourceQuestions = test.questions;
+        if (test.config?.shuffleQuestions) {
+            sourceQuestions = seededShuffleArray([...test.questions], getSeededRandom(`${student.phoneNumber}_${testId}`));
+        }
+        if (test.config?.maxQuestionsToAttempt > 0 && test.config?.maxQuestionsToAttempt < sourceQuestions.length) {
+            sourceQuestions = sourceQuestions.slice(0, test.config.maxQuestionsToAttempt);
+        }
+
+        // Apply option shuffling to the source questions
+        sourceQuestions = sourceQuestions.map((q: any) => {
+            q = typeof q.toObject === 'function' ? q.toObject() : JSON.parse(JSON.stringify(q));
+            return shuffleOptionsForQuestion(q, student.phoneNumber);
+        });
 
         // Create a map of the student's answers for quick lookup
         const answerMap = new Map<string, any>();
