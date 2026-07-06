@@ -4,6 +4,7 @@ import dbConnect from '@/lib/db';
 import OnlineTest from '@/models/OnlineTest';
 import BatchStudent from '@/models/BatchStudent';
 import StudentTestAttempt from '@/models/StudentTestAttempt';
+import { getSeededRandom, seededShuffleArray, shuffleOptionsForQuestion } from '@/lib/seededRandom';
 
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-dev-secret-change-this-in-prod';
@@ -21,39 +22,7 @@ async function getStudentFromToken(req: NextRequest) {
     }
 }
 
-function shuffleArray<T>(array: T[]): T[] {
-    const shuffled = [...array];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
-}
 
-// Shuffle options for a question and remap correctIndices to match new positions
-function shuffleOptionsForQuestion(question: any): any {
-    if (!question.options || question.options.length === 0) return question;
-    if (!question.shuffleOptions) return question;
-    if (question.type !== 'mcq' && question.type !== 'msq') return question;
-
-    // Create index mapping: originalIndex -> value
-    const indices: number[] = question.options.map((_: any, i: number) => i);
-    const shuffledIndices: number[] = shuffleArray(indices);
-
-    // Reorder options according to shuffled indices
-    const newOptions = shuffledIndices.map((origIdx) => question.options[origIdx]);
-
-    // Remap correctIndices: find where each original correct index ended up
-    const newCorrectIndices = (question.correctIndices || []).map((origCorrectIdx: number) => {
-        return shuffledIndices.indexOf(origCorrectIdx);
-    });
-
-    return {
-        ...question,
-        options: newOptions,
-        correctIndices: newCorrectIndices
-    };
-}
 
 // GET - Fetch test for taking (strips answers)
 export async function GET(
@@ -97,7 +66,23 @@ export async function GET(
 
             if (attempt.resumeCount > 1) { // They are resuming for the SECOND time
                 // Auto-grade their latest saved answers
-                const sourceQuestions = (attempt.questions && attempt.questions.length > 0) ? attempt.questions : test.questions;
+                let sourceQuestions = [...test.questions];
+                if (test.config?.maxQuestionsToAttempt || test.config?.shuffleQuestions) {
+                    const seedString = `${student.phoneNumber}_${testId}`;
+                    const randomFunc = getSeededRandom(seedString);
+                    sourceQuestions = seededShuffleArray(sourceQuestions, randomFunc);
+                    if (test.config?.maxQuestionsToAttempt && test.config.maxQuestionsToAttempt > 0) {
+                        sourceQuestions = sourceQuestions.slice(0, test.config.maxQuestionsToAttempt);
+                    }
+                }
+                sourceQuestions = sourceQuestions.map((q: any) => {
+                    const qObj = q.toObject ? q.toObject() : JSON.parse(JSON.stringify(q));
+                    let processed = shuffleOptionsForQuestion(qObj, student.phoneNumber);
+                    if (processed.type === 'comprehension' && processed.subQuestions) {
+                        processed.subQuestions = processed.subQuestions.map((sq: any) => shuffleOptionsForQuestion(sq, student.phoneNumber));
+                    }
+                    return processed;
+                });
                 const questionMap = new Map<string, any>();
                 for (const q of sourceQuestions) {
                     questionMap.set(q.id, q);
@@ -273,7 +258,7 @@ export async function GET(
         // Shuffle questions if configured AND using original test questions (not attempt snapshot)
         // If it's an attempt snapshot, order is preserved from creation
         if (!attempt && test.config?.shuffleQuestions) {
-            questions = shuffleArray(questions);
+            
         }
 
         return NextResponse.json({
@@ -344,6 +329,9 @@ export async function POST(
 
         // Prepare questions for this attempt
         // Deep clone so we don't mutate the original test document
+        // We do NOT save attempt.questions anymore to save DB space and use deterministic logic.
+        // Instead, we just pass an empty array, or omit it.
+        // To be safe with schema, we leave it empty.
         let attemptQuestions = test.questions.map((q: any) => {
             const qObj = q.toObject ? q.toObject() : JSON.parse(JSON.stringify(q));
             // Deep clone subQuestions if present
@@ -358,9 +346,11 @@ export async function POST(
             return qObj;
         });
 
-        // 1. Shuffle question order if configured
+                // 1. Shuffle question order if configured
         if (test.config?.maxQuestionsToAttempt || test.config?.shuffleQuestions) {
-            attemptQuestions = shuffleArray(attemptQuestions);
+            const seedString = `${student.phoneNumber}_${testId}`;
+            const randomFunc = getSeededRandom(seedString);
+            attemptQuestions = seededShuffleArray(attemptQuestions, randomFunc);
         }
 
         // 2. Slice if maxQuestionsToAttempt is set
@@ -370,11 +360,11 @@ export async function POST(
 
         // 3. Shuffle OPTIONS for each question that has shuffleOptions enabled
         attemptQuestions = attemptQuestions.map((q: any) => {
-            let shuffledQ = shuffleOptionsForQuestion(q);
+            let shuffledQ = shuffleOptionsForQuestion(q, student.phoneNumber);
             // Also handle comprehension sub-questions
             if (shuffledQ.type === 'comprehension' && shuffledQ.subQuestions) {
                 shuffledQ.subQuestions = shuffledQ.subQuestions.map((sq: any) => {
-                    return shuffleOptionsForQuestion(sq);
+                    return shuffleOptionsForQuestion(sq, student.phoneNumber);
                 });
             }
             return shuffledQ;
