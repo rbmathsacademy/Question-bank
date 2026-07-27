@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
     DollarSign, Search,
     Plus, CheckCircle, User, ChevronDown,
@@ -276,9 +276,11 @@ function FeesManagementContent() {
         try {
             const params = new URLSearchParams();
             if (recordFilters.batch) params.append('batch', recordFilters.batch);
-            if (recordFilters.search) params.append('studentName', recordFilters.search);
+            if (debouncedGridSearch) params.append('studentName', debouncedGridSearch);
             // Exclude ad-hoc records from the grid view
             params.append('excludeAdhoc', 'true');
+            // Grid needs all records for the selected batch
+            params.append('limit', '5000');
 
             const res = await fetch(`/api/admin/fees?${params.toString()}`, { cache: 'no-store' });
             const data = await res.json();
@@ -288,7 +290,7 @@ function FeesManagementContent() {
     };
 
     const fetchRecordStudents = async () => {
-        const students = await fetchStudents(recordFilters.batch || undefined, recordFilters.search);
+        const students = await fetchStudents(recordFilters.batch || undefined, debouncedGridSearch || undefined);
         setRecordStudents(students);
     };
 
@@ -299,7 +301,7 @@ function FeesManagementContent() {
             if (historyFilters.batch) params.append('batch', historyFilters.batch);
             if (historyFilters.mode) params.append('mode', historyFilters.mode);
             if (historyFilters.receiver) params.append('receiver', historyFilters.receiver);
-            if (historyFilters.search) params.append('studentName', historyFilters.search);
+            if (debouncedHistorySearch) params.append('studentName', debouncedHistorySearch);
             if (historyFilters.month) params.append('entryMonth', historyFilters.month);
 
             const res = await fetch(`/api/admin/fees?${params.toString()}`, { cache: 'no-store' });
@@ -315,15 +317,49 @@ function FeesManagementContent() {
         setLoading(false);
     };
 
+    // Debounce timers for grid and history search
+    const gridSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const historySearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [debouncedGridSearch, setDebouncedGridSearch] = useState(recordFilters.search);
+    const [debouncedHistorySearch, setDebouncedHistorySearch] = useState(historyFilters.search);
+
+    // Debounce grid search input
+    useEffect(() => {
+        if (gridSearchTimerRef.current) clearTimeout(gridSearchTimerRef.current);
+        gridSearchTimerRef.current = setTimeout(() => {
+            setDebouncedGridSearch(recordFilters.search);
+        }, 500);
+        return () => { if (gridSearchTimerRef.current) clearTimeout(gridSearchTimerRef.current); };
+    }, [recordFilters.search]);
+
+    // Debounce history search input
+    useEffect(() => {
+        if (historySearchTimerRef.current) clearTimeout(historySearchTimerRef.current);
+        historySearchTimerRef.current = setTimeout(() => {
+            setDebouncedHistorySearch(historyFilters.search);
+        }, 500);
+        return () => { if (historySearchTimerRef.current) clearTimeout(historySearchTimerRef.current); };
+    }, [historyFilters.search]);
+
     useEffect(() => {
         if (activeTab === 'record') {
-            fetchAllRecords();
-            fetchRecordStudents();
-            // Scroll to current month on open? Handled by auto-scroll logic in render or separate effect
-        } else if (activeTab === 'history') {
+            // Only load data when a batch is selected to avoid loading everything
+            if (recordFilters.batch) {
+                fetchAllRecords();
+                fetchRecordStudents();
+            } else {
+                // Clear data when no batch is selected
+                setAllRecords([]);
+                setRecordStudents([]);
+            }
+        }
+    }, [activeTab, recordFilters.batch, debouncedGridSearch]);
+
+    useEffect(() => {
+        if (activeTab === 'history') {
             fetchHistoryRecords();
         }
-    }, [activeTab, recordFilters, historyFilters]);
+    }, [activeTab, historyFilters.month, historyFilters.batch, historyFilters.mode, historyFilters.receiver, debouncedHistorySearch]);
 
     // --- Entry Logic ---
 
@@ -459,13 +495,19 @@ function FeesManagementContent() {
                     ? `Recorded ${data.count} payments! (${data.skippedCount} duplicate months skipped)`
                     : `Recorded ${data.count} payments!`;
                 toast.success(msg, { id: toastId });
-                fetchStudentHistory(selectedStudent._id, selectedStudent.name);
+                // Clear form completely so admin can start fresh
+                setSelectedStudent(null);
+                setStudentRecords([]);
+                setEntrySearch('');
                 setEntryForm(prev => ({
                     ...prev,
+                    batch: '',
                     amount: '',
                     remarks: ''
                 }));
                 setSelectedMonths([]);
+                setBatchStudents([]);
+                setEntryStudents([]);
             } else if (res.status === 409) {
                 const data = await res.json();
                 toast.error(data.error || 'Duplicate entry — fees already recorded for this month', { id: toastId });
@@ -675,6 +717,28 @@ function FeesManagementContent() {
     };
 
 
+    // --- Precomputed lookup maps for O(1) grid cell lookups ---
+    // These replace the O(n) .find() that was called for every single cell in the grid
+    const recordLookup = useMemo(() => {
+        const map = new Map<string, FeeRecord>();
+        for (const r of allRecords) {
+            const rId = (typeof r.student === 'object' && r.student) ? r.student._id : r.student;
+            const key = `${rId}|${(r.batch || '').trim()}|${r.year}|${r.monthIndex}`;
+            map.set(key, r);
+        }
+        return map;
+    }, [allRecords]);
+
+    const admissionLookup = useMemo(() => {
+        const map = new Map<string, FeeRecord>();
+        for (const r of allRecords) {
+            if (r.recordType !== 'NEW_ADMISSION') continue;
+            const rId = (typeof r.student === 'object' && r.student) ? r.student._id : r.student;
+            const key = `admission|${rId}|${(r.batch || '').trim()}`;
+            if (!map.has(key)) map.set(key, r); // Keep first (earliest) admission
+        }
+        return map;
+    }, [allRecords]);
 
     return (
         <div className="min-h-screen bg-[#050b14] p-2 md:p-6 text-slate-200 font-sans max-w-[100vw] overflow-x-hidden">
@@ -1024,8 +1088,15 @@ function FeesManagementContent() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
-                                    {recordStudents
-                                        .filter(s => s.name.toLowerCase().includes(recordFilters.search.toLowerCase()) || s.phoneNumber.includes(recordFilters.search))
+                                    {!recordFilters.batch ? (
+                                        <tr><td colSpan={gridMonths.length + 2} className="text-center py-20 text-slate-500">
+                                            <div className="flex flex-col items-center gap-2">
+                                                <Search className="h-8 w-8 opacity-30" />
+                                                <p className="font-medium">Select a batch to view the grid</p>
+                                                <p className="text-xs text-slate-600">Choose a batch from the dropdown above</p>
+                                            </div>
+                                        </td></tr>
+                                    ) : recordStudents
                                         .flatMap(student => {
                                             // Normalize courses: If no courses, show 'No Batch' or handle gracefully
                                             const studentBatches = (student.courses && student.courses.length > 0) ? student.courses : [];
@@ -1068,13 +1139,8 @@ function FeesManagementContent() {
                                                     <span className="text-xs font-mono text-slate-400 bg-slate-800 px-2 py-1 rounded">{batch}</span>
                                                 </td>
                                                 {gridMonths.map(m => {
-                                                    const record = allRecords.find(r => {
-                                                        const rId = (typeof r.student === 'object' && r.student) ? r.student._id : r.student;
-                                                        return String(rId) === String(student._id) &&
-                                                            String(r.batch).trim() === String(batch).trim() &&
-                                                            r.monthIndex === m.monthIndex &&
-                                                            r.year === m.year;
-                                                    });
+                                                    const recordKey = `${student._id}|${batch.trim()}|${m.year}|${m.monthIndex}`;
+                                                    const record = recordLookup.get(recordKey);
 
                                                     // Logic for CELL STATUS
                                                     // 1. Is New Admission?
@@ -1122,13 +1188,8 @@ function FeesManagementContent() {
 
                                                     // Find New Admission Date for this Student+Batch
                                                     // We look through all records for this student+batch that are NEW_ADMISSION
-                                                    const admissionRecord = allRecords.find(r => {
-                                                        const rId = (typeof r.student === 'object' && r.student) ? r.student._id : r.student;
-                                                        // Robust comparison: stringify IDs and trim batches
-                                                        return String(rId) === String(student._id) &&
-                                                            r.batch?.trim() === batch?.trim() &&
-                                                            r.recordType === 'NEW_ADMISSION';
-                                                    });
+                                                    const admissionKey = `admission|${student._id}|${batch.trim()}`;
+                                                    const admissionRecord = admissionLookup.get(admissionKey);
 
                                                     // Debug log if we expect an admission record but don't find one for a specific test case (e.g., first student in list)
                                                     // if (m.monthIndex === 0 && student.name.includes('Abhinav')) console.log('Checking Admission for', student.name, batch, admissionRecord);

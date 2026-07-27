@@ -269,9 +269,13 @@ export async function GET(req: Request) {
             ];
         }
 
+        const limitParam = searchParams.get('limit');
+        const limit = limitParam ? parseInt(limitParam) : 200; // Default cap at 200 records
+
         const records = await FeeRecord.find(query)
             .populate('student', 'name phoneNumber')
             .sort({ createdAt: -1, entryDate: -1 })
+            .limit(limit)
             .lean();
 
         // Self-healing: backfill studentName/studentPhone for records that have
