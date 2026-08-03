@@ -270,13 +270,19 @@ export async function GET(req: Request) {
         }
 
         const limitParam = searchParams.get('limit');
-        const limit = limitParam ? parseInt(limitParam) : 200; // Default cap at 200 records
+        // Only apply a limit when NO specific filters are active (i.e., truly unfiltered broad dump).
+        // When any filter (month, batch, student name, date range, mode, receiver) is present,
+        // the result set is already bounded — applying a cap would produce wrong totals/counts.
+        const hasFilter = !!(entryMonth || paymentMonth || batch || studentName || startDate || endDate || mode || receiver);
+        const limit = limitParam ? parseInt(limitParam) : (hasFilter ? 0 : 200); // 0 = no limit in Mongoose
 
-        const records = await FeeRecord.find(query)
+        const query2 = FeeRecord.find(query)
             .populate('student', 'name phoneNumber')
-            .sort({ createdAt: -1, entryDate: -1 })
-            .limit(limit)
-            .lean();
+            .sort({ createdAt: -1, entryDate: -1 });
+
+        if (limit > 0) query2.limit(limit);
+
+        const records = await query2.lean();
 
         // Self-healing: backfill studentName/studentPhone for records that have
         // a populated student but are missing denormalized fields.
