@@ -71,14 +71,16 @@ export async function GET(req: Request) {
                 }
             });
 
-            // Missed = no submission AND cooldown has expired AND student joined BEFORE deadline
+            // Missed = no submission AND cooldown has expired AND student joined BEFORE deadline AND not excluded
             let missedCount = 0;
             if (now > cooldownEnd) {
                 const submittedStudentIds = new Set(submissions.map((s: any) => s.student.toString()));
+                const excludedPhones: string[] = a.excludedStudents || [];
+                const excludedSet = new Set(excludedPhones);
                 batchStudents.forEach((student: any) => {
                     const studentJoinDate = new Date(student.createdAt);
-                    // Only count as missed if student joined before deadline and hasn't submitted
-                    if (studentJoinDate <= deadline && !submittedStudentIds.has(student._id.toString())) {
+                    // Only count as missed if student joined before deadline, hasn't submitted, and isn't excluded
+                    if (studentJoinDate <= deadline && !submittedStudentIds.has(student._id.toString()) && !excludedSet.has(student.phoneNumber)) {
                         missedCount++;
                     }
                 });

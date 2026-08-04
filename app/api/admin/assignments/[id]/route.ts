@@ -48,8 +48,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
                 const now = new Date();
                 const deadline = new Date(assignment.deadline);
                 const cooldownEnd = new Date(deadline.getTime() + (assignment.cooldownDuration || 0) * 60000);
+                const studentJoinDate = new Date(student.createdAt);
 
-                if (now > cooldownEnd) {
+                // Mirror the card view logic exactly:
+                // Only MISSED if: cooldown has expired AND student joined before the deadline
+                if (now > cooldownEnd && studentJoinDate <= deadline) {
                     submissionStatus = 'MISSED';
                 }
                 // else stays 'PENDING'
