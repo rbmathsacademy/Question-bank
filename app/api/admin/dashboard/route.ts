@@ -29,7 +29,7 @@ export async function GET() {
                         paidCourseCount: {
                             $size: {
                                 $filter: {
-                                    input: '$courses',
+                                    input: { $ifNull: ['$courses', []] },
                                     as: 'c',
                                     cond: { $ne: ['$$c', FREE_BATCH] }
                                 }
