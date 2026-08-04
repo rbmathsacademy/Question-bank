@@ -749,10 +749,12 @@ export default function QuestionEditor({ onSave, onCancel, initialQuestion }: Qu
                                                         type="number"
                                                         value={subQ.negativeMarks || ''}
                                                         onChange={(e) => {
-                                                            const val = parseFloat(e.target.value);
+                                                            const val = Math.abs(parseFloat(e.target.value));
                                                             updateSubQuestion(index, { negativeMarks: isNaN(val) ? 0 : val });
                                                         }}
                                                         className="w-20 bg-slate-900 border border-purple-500/30 rounded px-2 py-1 text-white text-sm"
+                                                        min="0"
+                                                        step="0.25"
                                                     />
                                                 </div>
                                             </div>
@@ -783,7 +785,7 @@ export default function QuestionEditor({ onSave, onCancel, initialQuestion }: Qu
                                         type="number"
                                         value={question.negativeMarks || ''}
                                         onChange={(e) => {
-                                            const val = parseFloat(e.target.value);
+                                            const val = Math.abs(parseFloat(e.target.value));
                                             setQuestion({ ...question, negativeMarks: isNaN(val) ? 0 : val });
                                         }}
                                         className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"

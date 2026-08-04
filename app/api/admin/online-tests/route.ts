@@ -224,6 +224,11 @@ export async function PUT(request: NextRequest) {
                     let isCorrect = false;
                     let marksAwarded = 0;
 
+                    // Check if the question was skipped (unanswered) first.
+                    // Skipped questions always get 0 — never negative marks.
+                    const isSkipped = ans.answer === null || ans.answer === undefined || ans.answer === '' ||
+                        (Array.isArray(ans.answer) && ans.answer.length === 0);
+
                     // Logic source: similar to submit route
                     if (qDef.isGrace) {
                         // Grace question: Always correct, full marks
@@ -231,6 +236,11 @@ export async function PUT(request: NextRequest) {
                         marksAwarded = qDef.marks || 1;
                         ans.isGraceAwarded = true;
                         hasPerQuestionGrace = true;
+                    } else if (isSkipped) {
+                        // Unanswered: 0 marks, no penalty
+                        ans.isGraceAwarded = false;
+                        marksAwarded = 0;
+                        isCorrect = false;
                     } else {
                         ans.isGraceAwarded = false; // Reset if grace removed
 
@@ -261,6 +271,8 @@ export async function PUT(request: NextRequest) {
                                 if (!isNaN(val) && val >= qDef.numberRangeMin && val <= qDef.numberRangeMax) {
                                     isCorrect = true;
                                     marksAwarded = qDef.marks || 1;
+                                } else {
+                                    marksAwarded = -Math.abs(qDef.negativeMarks || 0);
                                 }
                             } else {
                                 const studentAns = (ans.answer || '').toString().trim();
@@ -269,11 +281,15 @@ export async function PUT(request: NextRequest) {
                                     if (studentAns === correctAns) {
                                         isCorrect = true;
                                         marksAwarded = qDef.marks || 1;
+                                    } else {
+                                        marksAwarded = -Math.abs(qDef.negativeMarks || 0);
                                     }
                                 } else {
                                     if (studentAns.toLowerCase() === correctAns.toLowerCase()) {
                                         isCorrect = true;
                                         marksAwarded = qDef.marks || 1;
+                                    } else {
+                                        marksAwarded = -Math.abs(qDef.negativeMarks || 0);
                                     }
                                 }
                             }

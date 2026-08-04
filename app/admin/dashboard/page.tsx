@@ -17,6 +17,7 @@ export default function AdminDashboard() {
     const router = useRouter();
     const [stats, setStats] = useState({
         totalStudents: 0,
+        totalEnrollments: 0,
         totalQuestions: 0,
         activeTests: 0,
         unreadChats: 0,
@@ -60,6 +61,7 @@ export default function AdminDashboard() {
                 const data = await res.json();
                 setStats({
                     totalStudents: data.totalStudents,
+                    totalEnrollments: data.totalEnrollments ?? data.totalStudents,
                     totalQuestions: data.totalQuestions,
                     activeTests: data.activeTests,
                     unreadChats: unreadCount,
@@ -127,6 +129,7 @@ export default function AdminDashboard() {
         {
             title: 'Students',
             value: stats.totalStudents,
+            secondaryValue: stats.totalEnrollments,
             icon: Users,
             gradient: 'from-blue-500 to-cyan-500',
             href: null,
@@ -193,9 +196,29 @@ export default function AdminDashboard() {
                                 {loading ? (
                                     <div className="h-6 w-12 bg-white/5 rounded animate-pulse mt-1"></div>
                                 ) : (
-                                    <p className="text-lg sm:text-2xl lg:text-3xl font-black text-white leading-none">
-                                        {stat.value.toLocaleString()}
-                                    </p>
+                                    <div>
+                                        {stat.secondaryValue !== undefined ? (
+                                            // Students card: show unique + total enrollments
+                                            <div className="flex items-baseline gap-2 flex-wrap">
+                                                <div className="flex items-baseline gap-1">
+                                                    <p className="text-lg sm:text-2xl lg:text-3xl font-black text-cyan-300 leading-none">
+                                                        {stat.value.toLocaleString()}
+                                                    </p>
+                                                    <span className="text-[9px] sm:text-[10px] text-slate-400 font-semibold uppercase tracking-wide leading-none">unique</span>
+                                                </div>
+                                                <div className="flex items-baseline gap-1">
+                                                    <p className="text-base sm:text-xl lg:text-2xl font-black text-amber-400 leading-none">
+                                                        {stat.secondaryValue.toLocaleString()}
+                                                    </p>
+                                                    <span className="text-[9px] sm:text-[10px] text-slate-400 font-semibold uppercase tracking-wide leading-none">total</span>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <p className="text-lg sm:text-2xl lg:text-3xl font-black text-white leading-none">
+                                                {stat.value.toLocaleString()}
+                                            </p>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         </div>
