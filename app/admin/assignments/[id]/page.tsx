@@ -403,7 +403,7 @@ export default function AssignmentDetailsPage() {
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 sm:mb-6">
                 <button
-                    onClick={() => router.back()}
+                    onClick={() => router.push('/admin/assignments')}
                     className="flex items-center w-fit gap-2 text-gray-400 hover:text-white transition-colors text-sm sm:text-base bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/20"
                 >
                     <ArrowLeft className="w-4 h-4 sm:h-5 sm:w-5" />
