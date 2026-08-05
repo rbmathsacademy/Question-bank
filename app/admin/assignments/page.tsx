@@ -95,7 +95,20 @@ export default function AdminAssignmentsPage() {
             const data = await res.json();
             if (data.assignments) {
                 setAssignments(data.assignments);
-                setFolders(data.folders || []);
+                const loadedFolders: AssignmentFolder[] = data.folders || [];
+                setFolders(loadedFolders);
+
+                // Restore folder context after returning from a detail page
+                try {
+                    const savedFolder = sessionStorage.getItem('assignments_currentFolder');
+                    if (savedFolder) {
+                        const parsed: AssignmentFolder = JSON.parse(savedFolder);
+                        // Only restore if the folder still exists
+                        const stillExists = loadedFolders.find(f => f._id === parsed._id);
+                        if (stillExists) setCurrentFolder(stillExists);
+                        sessionStorage.removeItem('assignments_currentFolder');
+                    }
+                } catch { }
             }
         } catch (error) {
             toast.error('Failed to load data');
@@ -777,7 +790,13 @@ export default function AdminAssignmentsPage() {
                                                     <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5" />
                                                 </button>
                                                 <button
-                                                    onClick={() => router.push(`/admin/assignments/${assignment._id}`)}
+                                                    onClick={() => {
+                                                        // Save folder context so Back button restores it
+                                                        if (currentFolder) {
+                                                            sessionStorage.setItem('assignments_currentFolder', JSON.stringify(currentFolder));
+                                                        }
+                                                        router.push(`/admin/assignments/${assignment._id}`);
+                                                    }}
                                                     className="p-2 hover:bg-white/5 rounded-lg text-gray-400 hover:text-blue-400 transition-colors"
                                                     title="View Details"
                                                 >
