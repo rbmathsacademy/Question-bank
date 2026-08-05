@@ -30,6 +30,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             .filter((s: any) => excludedSet.has(s.phoneNumber))
             .map((s: any) => ({ _id: s._id, name: s.name, phoneNumber: s.phoneNumber, board: s.board || null }));
 
+        const now = new Date();
+        const assignmentDeadline = new Date(assignment.deadline);
+        const cooldownEnd = new Date(assignmentDeadline.getTime() + (assignment.cooldownDuration || 0) * 60000);
+        const cooldownExpired = now > cooldownEnd;
+
         // Merge student data
         const studentList = students.map((student: any) => {
             const submission = submissions.find((sub: any) => sub.student && sub.student._id.toString() === student._id.toString());
@@ -39,20 +44,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             // Calculate Status
             if (submission) {
                 const subTime = new Date(submission.submittedAt).getTime();
-                const deadlineTime = new Date(assignment.deadline).getTime();
+                const deadlineTime = assignmentDeadline.getTime();
                 const isLateDynamically = submission.overrideOnTime ? false : (subTime > deadlineTime);
-                
+
                 submissionStatus = isLateDynamically ? 'LATE_SUBMITTED' : 'SUBMITTED';
                 correctionStatus = submission.status || 'PENDING';
             } else {
-                const now = new Date();
-                const deadline = new Date(assignment.deadline);
-                const cooldownEnd = new Date(deadline.getTime() + (assignment.cooldownDuration || 0) * 60000);
                 const studentJoinDate = new Date(student.createdAt);
 
-                // Mirror the card view logic exactly:
-                // Only MISSED if: cooldown has expired AND student joined before the deadline
-                if (now > cooldownEnd && studentJoinDate <= deadline) {
+                // Three mutually-exclusive non-submitter states:
+                // NEW_ADMISSION: joined AFTER the deadline (regardless of cooldown)
+                // PENDING:       joined on/before deadline, cooldown NOT yet expired
+                // MISSED:        joined on/before deadline, cooldown HAS expired
+                if (studentJoinDate > assignmentDeadline) {
+                    submissionStatus = 'NEW_ADMISSION';
+                } else if (cooldownExpired) {
                     submissionStatus = 'MISSED';
                 }
                 // else stays 'PENDING'

@@ -42,11 +42,11 @@ export async function GET(req: Request) {
 
         const assignments = await Assignment.find(query).sort({ createdAt: -1 }).lean();
 
-        // Pre-fetch students per batch with join dates for accurate missed counts
+        // Pre-fetch students per batch with join dates for accurate missed/pending/new-admission counts
         const uniqueBatches = [...new Set(assignments.map((a: any) => a.batch))];
-        const batchStudentsMap: Record<string, Array<{ _id: any; createdAt: Date }>> = {};
+        const batchStudentsMap: Record<string, Array<{ _id: any; createdAt: Date; phoneNumber: string }>> = {};
         await Promise.all(uniqueBatches.map(async (b) => {
-            batchStudentsMap[b] = await BatchStudent.find({ courses: b }).select('_id createdAt').lean();
+            batchStudentsMap[b] = await BatchStudent.find({ courses: b }).select('_id createdAt phoneNumber').lean();
         }));
 
         const now = new Date();
@@ -61,6 +61,7 @@ export async function GET(req: Request) {
             const deadline = new Date(a.deadline);
             const deadlineTime = deadline.getTime();
             const cooldownEnd = new Date(deadlineTime + (a.cooldownDuration || 0) * 60000);
+            const cooldownExpired = now > cooldownEnd;
 
             // Late = submitted after deadline
             let lateCount = 0;
@@ -71,22 +72,34 @@ export async function GET(req: Request) {
                 }
             });
 
-            // Missed = no submission AND cooldown has expired AND student joined BEFORE deadline AND not excluded
-            let missedCount = 0;
-            if (now > cooldownEnd) {
-                const submittedStudentIds = new Set(submissions.map((s: any) => s.student.toString()));
-                const excludedPhones: string[] = a.excludedStudents || [];
-                const excludedSet = new Set(excludedPhones);
-                batchStudents.forEach((student: any) => {
-                    const studentJoinDate = new Date(student.createdAt);
-                    // Only count as missed if student joined before deadline, hasn't submitted, and isn't excluded
-                    if (studentJoinDate <= deadline && !submittedStudentIds.has(student._id.toString()) && !excludedSet.has(student.phoneNumber)) {
-                        missedCount++;
-                    }
-                });
-            }
+            const submittedStudentIds = new Set(submissions.map((s: any) => s.student.toString()));
+            const excludedPhones: string[] = a.excludedStudents || [];
+            const excludedSet = new Set(excludedPhones);
 
-            return { ...a, submissionCount, lateCount, missedCount, totalStudents };
+            // Three mutually-exclusive non-submitter buckets:
+            // NEW_ADMISSION: joined AFTER deadline (regardless of cooldown)
+            // PENDING:       joined on/before deadline, cooldown NOT yet expired
+            // MISSED:        joined on/before deadline, cooldown HAS expired
+            // Pending and Missed are complementary — only one can be non-zero at a time.
+            let missedCount = 0;
+            let pendingCount = 0;
+            let newAdmissionCount = 0;
+
+            batchStudents.forEach((student: any) => {
+                if (submittedStudentIds.has(student._id.toString())) return; // submitted
+                if (excludedSet.has(student.phoneNumber)) return; // excluded
+
+                const studentJoinDate = new Date(student.createdAt);
+                if (studentJoinDate > deadline) {
+                    newAdmissionCount++;
+                } else if (cooldownExpired) {
+                    missedCount++;
+                } else {
+                    pendingCount++;
+                }
+            });
+
+            return { ...a, submissionCount, lateCount, missedCount, pendingCount, newAdmissionCount, totalStudents };
         }));
 
         const folders = await AssignmentFolder.find({}).sort({ createdAt: -1 }).lean();

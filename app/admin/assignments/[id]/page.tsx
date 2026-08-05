@@ -18,7 +18,7 @@ interface StudentSubmission {
         board?: string | null;
     };
     status: 'PENDING' | 'CORRECTED'; // Correction Status
-    submissionStatus: 'SUBMITTED' | 'LATE_SUBMITTED' | 'MISSED' | 'PENDING';
+    submissionStatus: 'SUBMITTED' | 'LATE_SUBMITTED' | 'MISSED' | 'PENDING' | 'NEW_ADMISSION';
     submittedAt: string | null;
     link: string | null;
     isLate: boolean;
@@ -59,7 +59,7 @@ export default function AssignmentDetailsPage() {
 
     // Filter State
     const [correctionFilter, setCorrectionFilter] = useState<'ALL' | 'CORRECTED' | 'NOT_CORRECTED'>('ALL');
-    const [submissionFilter, setSubmissionFilter] = useState<'ALL' | 'ON_TIME' | 'LATE' | 'PENDING' | 'MISSED'>('ALL');
+    const [submissionFilter, setSubmissionFilter] = useState<'ALL' | 'ON_TIME' | 'LATE' | 'PENDING' | 'MISSED' | 'NEW_ADMISSION'>('ALL');
 
     // Question Viewer / Manager State
     const [assignmentQuestions, setAssignmentQuestions] = useState<any[]>([]);
@@ -379,6 +379,7 @@ export default function AssignmentDetailsPage() {
     const lateCount = students.filter(s => s.submissionStatus === 'LATE_SUBMITTED').length;
     const missedCount = students.filter(s => s.submissionStatus === 'MISSED').length;
     const pendingCount = students.filter(s => s.submissionStatus === 'PENDING').length;
+    const newAdmissionCount = students.filter(s => s.submissionStatus === 'NEW_ADMISSION').length;
 
     // Apply filters
     const filteredStudents = students.filter(s => {
@@ -391,6 +392,7 @@ export default function AssignmentDetailsPage() {
         if (submissionFilter === 'LATE' && s.submissionStatus !== 'LATE_SUBMITTED') return false;
         if (submissionFilter === 'PENDING' && s.submissionStatus !== 'PENDING') return false;
         if (submissionFilter === 'MISSED' && s.submissionStatus !== 'MISSED') return false;
+        if (submissionFilter === 'NEW_ADMISSION' && s.submissionStatus !== 'NEW_ADMISSION') return false;
 
         return true;
     });
@@ -400,13 +402,13 @@ export default function AssignmentDetailsPage() {
             <Toaster />
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 sm:mb-6">
-                <Link
-                    href="/admin/assignments"
-                    className="flex items-center w-fit gap-2 text-gray-400 hover:text-white transition-colors text-sm sm:text-base"
+                <button
+                    onClick={() => router.back()}
+                    className="flex items-center w-fit gap-2 text-gray-400 hover:text-white transition-colors text-sm sm:text-base bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/20"
                 >
                     <ArrowLeft className="w-4 h-4 sm:h-5 sm:w-5" />
                     Back
-                </Link>
+                </button>
                 {assignment?.type === 'QUESTIONS' && (
                     <div className="flex items-center gap-2 flex-wrap">
                         <button
@@ -536,14 +538,25 @@ export default function AssignmentDetailsPage() {
                             <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-orange-500" />
                             Late: {lateCount}
                         </div>
-                        <div className="flex items-center gap-1.5 text-red-400">
-                            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-red-500" />
-                            Missed: {missedCount}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-gray-400">
-                            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-gray-500" />
-                            Pending: {pendingCount}
-                        </div>
+                        {/* Pending and Missed are mutually exclusive — only one can be non-zero */}
+                        {pendingCount > 0 && (
+                            <div className="flex items-center gap-1.5 text-gray-400">
+                                <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-gray-500" />
+                                Pending: {pendingCount}
+                            </div>
+                        )}
+                        {missedCount > 0 && (
+                            <div className="flex items-center gap-1.5 text-red-400">
+                                <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-red-500" />
+                                Missed: {missedCount}
+                            </div>
+                        )}
+                        {newAdmissionCount > 0 && (
+                            <div className="flex items-center gap-1.5 text-teal-400">
+                                <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-teal-500" />
+                                New Admission: {newAdmissionCount}
+                            </div>
+                        )}
                         <div className="flex items-center gap-1.5 text-blue-400 ml-auto sm:ml-4 border-l border-white/10 pl-4">
                             Total Submissions: {submittedCount}
                         </div>
@@ -573,8 +586,9 @@ export default function AssignmentDetailsPage() {
                                 <option value="ALL">All Submissions</option>
                                 <option value="ON_TIME">On Time</option>
                                 <option value="LATE">Late</option>
-                                <option value="PENDING">Pending</option>
-                                <option value="MISSED">Missed</option>
+                                {pendingCount > 0 && <option value="PENDING">Pending</option>}
+                                {missedCount > 0 && <option value="MISSED">Missed</option>}
+                                {newAdmissionCount > 0 && <option value="NEW_ADMISSION">New Admission</option>}
                             </select>
                         </div>
                         {(correctionFilter !== 'ALL' || submissionFilter !== 'ALL') && (
@@ -668,6 +682,11 @@ export default function AssignmentDetailsPage() {
                                             {student.submissionStatus === 'PENDING' && (
                                                 <span className="inline-flex items-center gap-1.5 text-gray-400 text-xs bg-gray-500/10 px-2 py-1 rounded-full">
                                                     <Clock className="w-3 h-3" /> Pending
+                                                </span>
+                                            )}
+                                            {student.submissionStatus === 'NEW_ADMISSION' && (
+                                                <span className="inline-flex items-center gap-1.5 text-teal-400 text-xs bg-teal-500/10 px-2 py-1 rounded-full border border-teal-500/20">
+                                                    <User className="w-3 h-3" /> New Admission
                                                 </span>
                                             )}
                                         </td>
@@ -851,6 +870,11 @@ export default function AssignmentDetailsPage() {
                                     {student.submissionStatus === 'PENDING' && (
                                         <span className="inline-flex items-center gap-1 text-gray-400 text-[10px] bg-gray-500/10 px-2 py-0.5 rounded-full flex-shrink-0">
                                             <Clock className="w-3 h-3" /> Pending
+                                        </span>
+                                    )}
+                                    {student.submissionStatus === 'NEW_ADMISSION' && (
+                                        <span className="inline-flex items-center gap-1 text-teal-400 text-[10px] bg-teal-500/10 px-2 py-0.5 rounded-full flex-shrink-0 border border-teal-500/20">
+                                            <User className="w-3 h-3" /> New Admission
                                         </span>
                                     )}
                                 </div>

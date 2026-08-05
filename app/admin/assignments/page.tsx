@@ -17,6 +17,8 @@ interface Assignment {
     submissionCount: number;
     lateCount: number;
     missedCount: number;
+    pendingCount: number;
+    newAdmissionCount: number;
     totalStudents: number;
     createdAt: string;
     folderId?: string;
@@ -744,10 +746,23 @@ export default function AdminAssignmentsPage() {
                                                             <span>{assignment.lateCount} Late</span>
                                                         </div>
                                                     )}
+                                                    {/* Pending and Missed are mutually exclusive — only one shows at a time */}
+                                                    {assignment.pendingCount > 0 && (
+                                                        <div className="flex items-center gap-1.5 text-gray-400">
+                                                            <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                                            <span>{assignment.pendingCount} Pending</span>
+                                                        </div>
+                                                    )}
                                                     {assignment.missedCount > 0 && (
                                                         <div className="flex items-center gap-1.5 text-red-400">
                                                             <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                                                             <span>{assignment.missedCount} Missed</span>
+                                                        </div>
+                                                    )}
+                                                    {assignment.newAdmissionCount > 0 && (
+                                                        <div className="flex items-center gap-1.5 text-teal-400">
+                                                            <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex items-center justify-center text-[10px] font-bold">🆕</span>
+                                                            <span>{assignment.newAdmissionCount} New Admission</span>
                                                         </div>
                                                     )}
                                                 </div>

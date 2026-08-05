@@ -315,9 +315,10 @@ export default function CreateTestPage() {
                 <div className="flex items-center gap-4">
                     <button
                         onClick={() => router.back()}
-                        className="p-2 hover:bg-slate-800 rounded-lg transition-colors mr-2"
+                        className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/20"
                     >
                         <ArrowLeft className="h-5 w-5 text-slate-400" />
+                        <span>Back</span>
                     </button>
                     <div>
                         <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">
