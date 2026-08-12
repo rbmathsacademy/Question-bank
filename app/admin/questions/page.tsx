@@ -853,7 +853,16 @@ export default function QuestionBank() {
 
             if (res.ok) {
                 setSelectedQuestionIds(new Set());
-                if (userEmail) fetchQuestions(userEmail);
+                if (userEmail) {
+                    // Refetch using the current active topic — do NOT call without filters
+                    // (that would fetch ALL questions and blow away the current filtered view)
+                    const actualTopics = selectedTopics.filter(t => t !== 'No Topic');
+                    if (actualTopics.length > 0) {
+                        fetchQuestions(userEmail, { topics: actualTopics });
+                    } else {
+                        setQuestions(prev => prev.filter(q => !selectedQuestionIds.has(q.id)));
+                    }
+                }
             }
         } catch (error) {
             console.error(error);
