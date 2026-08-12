@@ -232,6 +232,13 @@ export default function QuestionBank() {
     const [isIdClashModalOpen, setIsIdClashModalOpen] = useState(false);
     const [pendingSaveQuestions, setPendingSaveQuestions] = useState<any[]>([]);
 
+    // Trash Modal State
+    const [isTrashModalOpen, setIsTrashModalOpen] = useState(false);
+    const [trashQuestions, setTrashQuestions] = useState<any[]>([]);
+    const [selectedTrashIds, setSelectedTrashIds] = useState<Set<string>>(new Set());
+    const [trashLoading, setTrashLoading] = useState(false);
+    const [deleteConfirmation, setDeleteConfirmation] = useState('');
+
     // Filter State
     const [selectedTopics, setSelectedTopics] = useState<string[]>(["No Topic"]);
     const [selectedSubtopics, setSelectedSubtopics] = useState<string[]>([]);
@@ -486,6 +493,11 @@ export default function QuestionBank() {
             setQuestions([]); // No topic selected = empty
         }
     }, [selectedTopics, selectedUploadedBy, userEmail]);
+
+    // Clear selection when topic changes to prevent stale cross-topic mass deletes
+    useEffect(() => {
+        setSelectedQuestionIds(new Set());
+    }, [selectedTopics]);
 
     // Global search handler
     const handleGlobalSearch = async () => {
@@ -836,9 +848,82 @@ export default function QuestionBank() {
         setSelectedQuestionIds(newSet);
     };
 
+    const openTrash = async () => {
+        setIsTrashModalOpen(true);
+        setTrashLoading(true);
+        try {
+            const headers: any = { 'X-User-Email': userEmail || '' };
+            if (typeof window !== 'undefined' && localStorage.getItem('globalAdminActive') === 'true') {
+                headers['X-Global-Admin-Key'] = 'globaladmin_25';
+            }
+            const res = await fetch('/api/admin/questions/trash', { headers });
+            if (res.ok) {
+                const data = await res.json();
+                setTrashQuestions(data);
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setTrashLoading(false);
+        }
+    };
+
+    const handleTrashAction = async (action: 'restore' | 'purge') => {
+        if (selectedTrashIds.size === 0) return;
+        setTrashLoading(true);
+        try {
+            const headers: any = { 'Content-Type': 'application/json', 'X-User-Email': userEmail || '' };
+            if (typeof window !== 'undefined' && localStorage.getItem('globalAdminActive') === 'true') {
+                headers['X-Global-Admin-Key'] = 'globaladmin_25';
+            }
+            const res = await fetch('/api/admin/questions/trash', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ ids: Array.from(selectedTrashIds), action })
+            });
+            if (res.ok) {
+                toast.success(`Questions ${action === 'restore' ? 'restored' : 'permanently deleted'}`);
+                setSelectedTrashIds(new Set());
+                setDeleteConfirmation('');
+                await openTrash(); // Refresh trash list
+                
+                // Refresh main list if restored
+                if (action === 'restore' && userEmail) {
+                    await fetchFilters(userEmail);
+                    const actualTopics = selectedTopics.filter((t: string) => t !== "No Topic");
+                    if (actualTopics.length > 0) {
+                        await fetchQuestions(userEmail, { topics: actualTopics, uploadedBys: selectedUploadedBy });
+                    }
+                }
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setTrashLoading(false);
+        }
+    };
+
     const deleteSelected = async () => {
         if (selectedQuestionIds.size === 0) return;
-        if (!confirm(`Delete ${selectedQuestionIds.size} questions?`)) return;
+
+        // Hard guard: if deleting more than 3 questions, require typed confirmation
+        if (selectedQuestionIds.size > 3) {
+            const topics = [...new Set(filteredQuestions
+                .filter(q => selectedQuestionIds.has(q.id))
+                .map(q => q.topic))].join(', ');
+            const typed = window.prompt(
+                `⚠️ WARNING: You are about to permanently delete ${selectedQuestionIds.size} questions from topic(s): "${topics}".\n\nThis CANNOT be undone. Type DELETE to confirm.`
+            );
+            if (typed !== 'DELETE') {
+                alert('Cancelled. You must type DELETE exactly to confirm bulk deletion.');
+                return;
+            }
+        } else {
+            if (!confirm(`Delete ${selectedQuestionIds.size} question${selectedQuestionIds.size > 1 ? 's' : ''}?`)) return;
+        }
+
+        // Capture the IDs NOW before any state changes
+        const idsToDelete = new Set(selectedQuestionIds);
 
         setLoading(true);
         try {
@@ -848,19 +933,17 @@ export default function QuestionBank() {
                     'Content-Type': 'application/json',
                     'X-User-Email': userEmail || ''
                 },
-                body: JSON.stringify({ ids: Array.from(selectedQuestionIds) })
+                body: JSON.stringify({ ids: Array.from(idsToDelete) })
             });
 
             if (res.ok) {
                 setSelectedQuestionIds(new Set());
                 if (userEmail) {
-                    // Refetch using the current active topic — do NOT call without filters
-                    // (that would fetch ALL questions and blow away the current filtered view)
                     const actualTopics = selectedTopics.filter(t => t !== 'No Topic');
                     if (actualTopics.length > 0) {
                         fetchQuestions(userEmail, { topics: actualTopics });
                     } else {
-                        setQuestions(prev => prev.filter(q => !selectedQuestionIds.has(q.id)));
+                        setQuestions(prev => prev.filter(q => !idsToDelete.has(q.id)));
                     }
                 }
             }
@@ -1249,6 +1332,9 @@ export default function QuestionBank() {
                                     </button>
                                     <button onClick={deleteSelected} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-red-900/30 text-red-400 border border-gray-700 hover:border-red-500/30 rounded text-xs font-medium transition-colors">
                                         <Trash2 className="h-3.5 w-3.5" /> Delete
+                                    </button>
+                                    <button onClick={openTrash} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 hover:border-gray-500 rounded text-xs font-medium transition-colors ml-2">
+                                        <Trash2 className="h-3.5 w-3.5" /> Trash
                                     </button>
                                     <button
                                         onClick={() => { setBatchTagTargets([]); setBatchTagMode('add'); setIsBatchTagModalOpen(true); }}
@@ -1925,6 +2011,108 @@ export default function QuestionBank() {
                             >
                                 {batchTagLoading ? 'Updating...' : 'Apply'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {isTrashModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="bg-gray-800 rounded-xl border border-gray-700 shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col">
+                        <div className="p-4 border-b border-gray-700 flex justify-between items-center">
+                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                <Trash2 className="h-6 w-6 text-gray-400" />
+                                Trash
+                            </h2>
+                            <button onClick={() => { setIsTrashModalOpen(false); setSelectedTrashIds(new Set()); setDeleteConfirmation(''); }} className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-700 rounded-lg">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="p-4 flex-1 overflow-y-auto">
+                            {trashLoading ? (
+                                <div className="flex justify-center p-8"><Loader2 className="animate-spin h-8 w-8 text-blue-500" /></div>
+                            ) : trashQuestions.length === 0 ? (
+                                <div className="text-center p-8 text-gray-400">Trash is empty.</div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center bg-gray-900 p-2 rounded border border-gray-700">
+                                        <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={selectedTrashIds.size === trashQuestions.length && trashQuestions.length > 0}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setSelectedTrashIds(new Set(trashQuestions.map(q => q.id)));
+                                                    } else {
+                                                        setSelectedTrashIds(new Set());
+                                                    }
+                                                }}
+                                                className="rounded bg-gray-800 border-gray-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900"
+                                            />
+                                            Select All ({selectedTrashIds.size}/{trashQuestions.length})
+                                        </label>
+                                    </div>
+                                    {/* Group by topic for better UX */}
+                                    {Array.from(new Set(trashQuestions.map(q => q.topic))).sort().map((topic: any) => (
+                                        <div key={topic} className="mb-4">
+                                            <h3 className="text-sm font-bold text-gray-400 mb-2 border-b border-gray-700 pb-1">{topic}</h3>
+                                            <div className="space-y-2">
+                                                {trashQuestions.filter(q => q.topic === topic).map(q => (
+                                                    <div key={q.id} className="flex gap-3 bg-gray-900/50 p-2 rounded border border-gray-700/50 hover:bg-gray-700/30">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={selectedTrashIds.has(q.id)}
+                                                            onChange={(e) => {
+                                                                const next = new Set(selectedTrashIds);
+                                                                if (e.target.checked) next.add(q.id);
+                                                                else next.delete(q.id);
+                                                                setSelectedTrashIds(next);
+                                                            }}
+                                                            className="mt-1 rounded bg-gray-800 border-gray-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900"
+                                                        />
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex justify-between">
+                                                                <span className="text-xs font-semibold text-blue-400">{q.subtopic}</span>
+                                                                <span className="text-[10px] text-gray-500">{new Date(q.deletedAt).toLocaleDateString()}</span>
+                                                            </div>
+                                                            <p className="text-sm text-gray-300 truncate">{q.text.substring(0, 80)}{q.text.length > 80 ? '...' : ''}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-4 border-t border-gray-700 bg-gray-900/50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                            <span className="text-xs text-gray-500">Trash auto-purges after 30 days</span>
+                            <div className="flex gap-2 w-full sm:w-auto">
+                                <button 
+                                    disabled={selectedTrashIds.size === 0 || trashLoading}
+                                    onClick={() => handleTrashAction('restore')}
+                                    className="flex-1 sm:flex-none px-4 py-2 bg-green-600/20 hover:bg-green-600/30 text-green-400 border border-green-600/50 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                                >
+                                    Restore Selected
+                                </button>
+                                <div className="flex gap-2">
+                                    {selectedTrashIds.size > 0 && (
+                                        <input 
+                                            type="text"
+                                            placeholder="Type DELETE"
+                                            value={deleteConfirmation}
+                                            onChange={e => setDeleteConfirmation(e.target.value)}
+                                            className="w-24 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-sm text-white"
+                                        />
+                                    )}
+                                    <button 
+                                        disabled={selectedTrashIds.size === 0 || trashLoading || deleteConfirmation !== 'DELETE'}
+                                        onClick={() => handleTrashAction('purge')}
+                                        className="flex-1 sm:flex-none px-4 py-2 bg-red-900/40 hover:bg-red-900/60 text-red-400 border border-red-800 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                                    >
+                                        Permanently Delete
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

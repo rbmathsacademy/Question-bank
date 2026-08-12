@@ -18,6 +18,8 @@ const QuestionSchema = new mongoose.Schema({
     hint: { type: String },     // Hint
     explanation: { type: String }, // Explanation
     order: { type: Number, default: 0 },
+    deleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
     createdAt: { type: Date, default: Date.now }
 });
 

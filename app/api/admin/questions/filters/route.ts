@@ -13,7 +13,7 @@ export async function GET(req: Request) {
     const adminKey = req.headers.get('X-Global-Admin-Key');
 
     // Build match filter based on auth
-    const matchFilter: any = {};
+    const matchFilter: any = { deleted: { $ne: true } };
     if (adminKey !== GLOBAL_ADMIN_KEY) {
         if (!email) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

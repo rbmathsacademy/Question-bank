@@ -24,7 +24,7 @@ export async function GET(req: Request) {
     const projection = lightweight ? { image: 0, explanation: 0, options: 0, answer: 0, hint: 0 } : {};
 
     // Build base query based on auth
-    const baseQuery: any = {};
+    const baseQuery: any = { deleted: { $ne: true } };
     if (adminKey === GLOBAL_ADMIN_KEY) {
         // Global admin sees all
     } else if (email) {
@@ -248,13 +248,13 @@ export async function DELETE(req: Request) {
             }
         }
 
-        const deleteResult = await Question.deleteMany(query);
-        if (deleteResult.deletedCount < ids.length) {
+        const deleteResult = await Question.updateMany(query, { $set: { deleted: true, deletedAt: new Date() } });
+        if (deleteResult.modifiedCount < ids.length) {
             // Some weren't deleted, probably due to permissions
-            console.warn(`[API] Expected to delete ${ids.length}, but deleted ${deleteResult.deletedCount}`);
+            console.warn(`[API] Expected to delete ${ids.length}, but deleted ${deleteResult.modifiedCount}`);
         }
 
-        return NextResponse.json({ message: 'Questions deleted successfully' });
+        return NextResponse.json({ message: 'Questions moved to trash', count: deleteResult.modifiedCount });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
