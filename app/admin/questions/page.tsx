@@ -1650,7 +1650,7 @@ export default function QuestionBank() {
                                 </>
                             ) : (
                                 <button
-                                    onClick={saveToDatabase}
+                                    onClick={() => saveToDatabase()}
                                     disabled={loading}
                                     className="bg-green-600 hover:bg-green-500 text-white px-4 py-3 rounded-full shadow-lg text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 animate-in fade-in zoom-in duration-300"
                                 >
