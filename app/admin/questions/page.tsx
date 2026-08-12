@@ -222,10 +222,15 @@ export default function QuestionBank() {
 
 
 
-    // Duplicate Detection State
+    // Duplicate Detection State (text-based)
     const [duplicateQuestions, setDuplicateQuestions] = useState<any[]>([]);
     const [newQuestions, setNewQuestions] = useState<any[]>([]);
     const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
+
+    // ID Clash Detection State
+    const [idClashQuestions, setIdClashQuestions] = useState<Array<{ incoming: any; existing: any }>>([]);
+    const [isIdClashModalOpen, setIsIdClashModalOpen] = useState(false);
+    const [pendingSaveQuestions, setPendingSaveQuestions] = useState<any[]>([]);
 
     // Filter State
     const [selectedTopics, setSelectedTopics] = useState<string[]>(["No Topic"]);
@@ -674,30 +679,93 @@ export default function QuestionBank() {
         alert("Prompt copied to clipboard!");
     };
 
-    const saveToDatabase = async () => {
-        if (previewContent.length === 0) return;
-        const invalid = previewContent.find(q => !q.topic || !q.subtopic || !q.text);
+    const saveToDatabase = async (questionsToSave?: any[]) => {
+        const toSaveRaw = questionsToSave || previewContent;
+        if (toSaveRaw.length === 0) return;
+        const invalid = toSaveRaw.find((q: any) => !q.topic || !q.subtopic || !q.text);
         if (invalid) {
             alert('All questions must have a Topic, Subtopic, and Text.');
             return;
         }
 
+        const toSave = toSaveRaw.map((q: any) => ({
+            ...q,
+            id: q.id || `q_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            topic: q.topic.charAt(0).toUpperCase() + q.topic.slice(1),
+            subtopic: q.subtopic.charAt(0).toUpperCase() + q.subtopic.slice(1),
+            type: q.type || 'broad'
+        }));
+
+        // ── ID Clash Check ──────────────────────────────────────────────
+        // Before saving, check if any incoming IDs already exist in the DB
+        // for a DIFFERENT question (different text). This prevents silent overwrites.
+        try {
+            const incomingIds = toSave.map((q: any) => q.id).filter(Boolean);
+            if (incomingIds.length > 0) {
+                const headers: any = { 'Content-Type': 'application/json', 'X-User-Email': userEmail || '' };
+                if (typeof window !== 'undefined' && localStorage.getItem('globalAdminActive') === 'true') {
+                    headers['X-Global-Admin-Key'] = 'globaladmin_25';
+                }
+                const checkRes = await fetch('/api/admin/questions/check-id-clash', {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ ids: incomingIds })
+                });
+                if (checkRes.ok) {
+                    const { clashes } = await checkRes.json();
+                    if (clashes && clashes.length > 0) {
+                        // Build clash pairs: incoming question vs existing DB question
+                        const clashPairs = clashes.map((existing: any) => ({
+                            incoming: toSave.find((q: any) => q.id === existing.id),
+                            existing
+                        })).filter((c: any) => c.incoming);
+
+                        if (clashPairs.length > 0) {
+                            setIdClashQuestions(clashPairs);
+                            setPendingSaveQuestions(toSave);
+                            setIsIdClashModalOpen(true);
+                            return; // Stop — wait for admin to decide
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            // If clash check fails, proceed with save (fail-open)
+            console.warn('ID clash check failed, proceeding with save:', e);
+        }
+        // ────────────────────────────────────────────────────────────────
+
+        await performSave(toSave);
+    };
+
+    // Auto-fix clashing IDs by appending 6 random chars, then save
+    const resolveIdClashes = () => {
+        const clashingIds = new Set(idClashQuestions.map(c => c.incoming.id));
+        const fixed = pendingSaveQuestions.map((q: any) => {
+            if (clashingIds.has(q.id)) {
+                const suffix = Math.random().toString(36).substr(2, 6);
+                return { ...q, id: `${q.id}_${suffix}` };
+            }
+            return q;
+        });
+        setIsIdClashModalOpen(false);
+        setIdClashQuestions([]);
+        setPendingSaveQuestions([]);
+        performSave(fixed);
+    };
+
+    const performSave = async (toSave: any[]) => {
+
         setLoading(true);
         try {
-            const toSave = previewContent.map(q => ({
-                ...q,
-                id: q.id || `q_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                topic: q.topic.charAt(0).toUpperCase() + q.topic.slice(1),
-                subtopic: q.subtopic.charAt(0).toUpperCase() + q.subtopic.slice(1),
-                type: q.type || 'broad'
-            }));
+            const headers: any = { 'Content-Type': 'application/json', 'X-User-Email': userEmail || '' };
+            if (typeof window !== 'undefined' && localStorage.getItem('globalAdminActive') === 'true') {
+                headers['X-Global-Admin-Key'] = 'globaladmin_25';
+            }
 
             const res = await fetch('/api/admin/questions', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-User-Email': userEmail || ''
-                },
+                headers,
                 body: JSON.stringify({ questions: toSave })
             });
 
@@ -1661,6 +1729,61 @@ export default function QuestionBank() {
                                 </div>
                             ))
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* ⚠️ ID Clash Modal */}
+            {isIdClashModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="bg-gray-800 p-6 rounded-xl max-w-2xl w-full border border-red-500/40 shadow-2xl">
+                        <h3 className="text-xl font-bold text-red-400 mb-1 flex items-center gap-2">
+                            <AlertCircle className="h-5 w-5" /> ID Clash Detected!
+                        </h3>
+                        <p className="text-gray-400 text-sm mb-4">
+                            <span className="text-white font-semibold">{idClashQuestions.length}</span> of your incoming question{idClashQuestions.length !== 1 ? 's have IDs' : ' has an ID'} that already exist in the database for a <span className="text-red-400 font-semibold">different</span> question. Saving without fixing will silently overwrite those existing questions.
+                        </p>
+
+                        <div className="max-h-72 overflow-y-auto mb-5 space-y-3 pr-1">
+                            {idClashQuestions.map((clash, i) => (
+                                <div key={i} className="rounded-lg border border-red-500/30 bg-red-900/10 p-3 text-xs">
+                                    <div className="font-mono text-red-300 mb-2 font-bold">ID: {clash.incoming.id}</div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <div className="text-yellow-400 font-semibold mb-1">⬇ Incoming (NEW)</div>
+                                            <div className="text-gray-300 line-clamp-3">{clash.incoming.text}</div>
+                                            <div className="text-gray-500 mt-1">{clash.incoming.topic} › {clash.incoming.subtopic}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-blue-400 font-semibold mb-1">📦 Existing in DB</div>
+                                            <div className="text-gray-300 line-clamp-3">{clash.existing.text}</div>
+                                            <div className="text-gray-500 mt-1">{clash.existing.topic} › {clash.existing.subtopic}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-3 justify-end">
+                            <button
+                                onClick={() => { setIsIdClashModalOpen(false); setIdClashQuestions([]); setPendingSaveQuestions([]); }}
+                                className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => { setIsIdClashModalOpen(false); performSave(pendingSaveQuestions); }}
+                                className="px-4 py-2 rounded-lg bg-orange-700 hover:bg-orange-600 text-white text-sm font-medium"
+                            >
+                                Overwrite Anyway
+                            </button>
+                            <button
+                                onClick={resolveIdClashes}
+                                className="px-4 py-2 rounded-lg bg-green-700 hover:bg-green-600 text-white text-sm font-bold flex items-center gap-2"
+                            >
+                                <RefreshCw className="h-4 w-4" /> Auto-fix IDs & Save
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
