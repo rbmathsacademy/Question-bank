@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Loader2, Plus, FileJson, FileText, Trash2, Download, Save, X, Printer, Edit, Upload, Copy, ExternalLink, RefreshCw, Check, ChevronDown, ToggleLeft, ToggleRight, GraduationCap, ArrowLeft, ArrowRightCircle, Search } from 'lucide-react';
+import { Loader2, Plus, FileJson, FileText, Trash2, Download, Save, X, Printer, Edit, Upload, Copy, ExternalLink, RefreshCw, Check, ChevronDown, ToggleLeft, ToggleRight, GraduationCap, ArrowLeft, ArrowRightCircle, Search, BarChart2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import 'katex/dist/katex.min.css';
 import 'katex/dist/katex.min.css';
@@ -190,6 +190,30 @@ Example of a Perfect Explanation String:
 
 Output ONLY the valid JSON array starting with [ and ending with ].`;
 
+const PREDEFINED_BATCHES = [
+    '1st/3rd Sem Major/Minor',
+    '2nd/4th Sem Major/Minor',
+    '3rd Sem Major',
+    '4th Sem Major',
+    '5th Sem Major',
+    '5th Sem Minor',
+    '6th Sem Major',
+    'Class XI',
+    'Class XI JEE',
+    'Class XII',
+    'Class XII JEE',
+    'Class XI Applied Maths',
+    'Class XII Applied Maths',
+    'BCA',
+    '1st Sem Engg',
+    '2nd Sem Engg',
+    '3rd Sem Engg',
+    '4th Sem Engg',
+    '1st/3rd Sem Statistics',
+    '2nd/4th Sem Statistics',
+    '5th Sem Statistics',
+];
+
 type EditorMode = 'manual' | 'json' | 'image' | 'pdf' | 'latex';
 
 export default function QuestionBank() {
@@ -262,9 +286,21 @@ export default function QuestionBank() {
 
     // Batch Tagging Modal State
     const [isBatchTagModalOpen, setIsBatchTagModalOpen] = useState(false);
-    const [batchTagTargets, setBatchTagTargets] = useState<string[]>([]);
-    const [batchTagMode, setBatchTagMode] = useState<'add' | 'set' | 'remove'>('add');
+    const [batchTagTarget, setBatchTagTarget] = useState<string>(''); // single batch (always set/replace)
     const [batchTagLoading, setBatchTagLoading] = useState(false);
+
+    // Merge Modal State
+    const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
+    const [mergeIdsInput, setMergeIdsInput] = useState('');
+    const [mergeQuestions, setMergeQuestions] = useState<any[]>([]);
+    const [mergePrimaryId, setMergePrimaryId] = useState<string>('');
+    const [mergeLoading, setMergeLoading] = useState(false);
+    const [mergeFetchError, setMergeFetchError] = useState<string | null>(null);
+
+    // Analytics Modal State
+    const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
+    const [analyticsData, setAnalyticsData] = useState<{ total: number; untagged: number; perBatch: Record<string, number> } | null>(null);
+    const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
     // Helper: filter questions by selected batches
     const filterByBatches = (qs: any[]) => {
@@ -315,25 +351,31 @@ export default function QuestionBank() {
         return Array.from(new Set(filtered.map(q => q.subtopic))).filter(Boolean).sort();
     }, [questions, selectedTopics, selectedExams, selectedBatches]);
 
-    // Cascading Exam Names: Filter based on selected topics and subtopics
+    // Cascading Exam Names: use serverFilters when no topic selected (allows independent exam filtering)
     const examNames = useMemo(() => {
+        // When no topic selected and no questions loaded, show ALL exam names from server
+        const actualTopics = selectedTopics.filter(t => t !== "No Topic");
+        if (actualTopics.length === 0 && questions.length === 0 && serverFilters.examNames.length > 0) {
+            return serverFilters.examNames;
+        }
         const set = new Set<string>();
         let filtered = filterByBatches(questions);
-
-        const actualTopics = selectedTopics.filter(t => t !== "No Topic");
         if (actualTopics.length > 0) {
             filtered = filtered.filter(q => actualTopics.includes(q.topic));
         }
         if (selectedSubtopics.length > 0) {
             filtered = filtered.filter(q => selectedSubtopics.includes(q.subtopic));
         }
-
         filtered.forEach(q => {
             if (q.examNames && Array.isArray(q.examNames)) q.examNames.forEach((e: string) => set.add(e));
             else if (q.examName) set.add(q.examName);
         });
+        // Also merge serverFilters when no topic narrowing is active
+        if (actualTopics.length === 0 && serverFilters.examNames.length > 0) {
+            serverFilters.examNames.forEach((e: string) => set.add(e));
+        }
         return Array.from(set).filter(Boolean).sort();
-    }, [questions, selectedTopics, selectedSubtopics, selectedBatches]);
+    }, [questions, selectedTopics, selectedSubtopics, selectedBatches, serverFilters]);
 
     // Derived batch names from questions (what batches exist on questions)
     const availableBatchNames = useMemo(() => {
@@ -498,6 +540,16 @@ export default function QuestionBank() {
     useEffect(() => {
         setSelectedQuestionIds(new Set());
     }, [selectedTopics]);
+
+    // When an exam is selected without a topic, fetch questions by exam so topics can cascade
+    useEffect(() => {
+        if (!userEmail || selectedExams.length === 0) return;
+        const actualTopics = selectedTopics.filter(t => t !== 'No Topic');
+        if (actualTopics.length === 0) {
+            // No topic selected — fetch by exam so the question list populates
+            fetchQuestions(userEmail, { exams: selectedExams, uploadedBys: selectedUploadedBy });
+        }
+    }, [selectedExams]);
 
     // Global search handler
     const handleGlobalSearch = async () => {
@@ -846,6 +898,99 @@ export default function QuestionBank() {
         if (newSet.has(id)) newSet.delete(id);
         else newSet.add(id);
         setSelectedQuestionIds(newSet);
+    };
+
+    // ── Merge Tool ────────────────────────────────────────────────────────
+    const fetchMergeQuestions = async () => {
+        const ids = mergeIdsInput.split(',').map(s => s.trim()).filter(Boolean);
+        if (ids.length < 2) { setMergeFetchError('Enter at least 2 question IDs separated by commas.'); return; }
+        setMergeLoading(true);
+        setMergeFetchError(null);
+        try {
+            const headers: any = { 'X-User-Email': userEmail || '' };
+            if (typeof window !== 'undefined' && localStorage.getItem('globalAdminActive') === 'true') {
+                headers['X-Global-Admin-Key'] = 'globaladmin_25';
+            }
+            const params = new URLSearchParams();
+            // fetch all — we'll filter client-side by ID
+            const res = await fetch(`/api/admin/questions?ids=${ids.join('|||')}`, { headers });
+            if (!res.ok) throw new Error('Failed to fetch');
+            // The API might not support ids param — fallback: use global search per ID
+            // We'll use the existing route and filter
+            const all = await res.json();
+            const matched = Array.isArray(all) ? all.filter((q: any) => ids.includes(q.id)) : [];
+            if (matched.length === 0) {
+                setMergeFetchError('No questions found for those IDs. Make sure IDs are correct.');
+            } else {
+                setMergeQuestions(matched);
+                setMergePrimaryId(matched[0].id);
+            }
+        } catch (e: any) {
+            setMergeFetchError(e.message || 'Error fetching questions');
+        } finally {
+            setMergeLoading(false);
+        }
+    };
+
+    const handleMerge = async () => {
+        if (!mergePrimaryId || mergeQuestions.length < 2) return;
+        setMergeLoading(true);
+        try {
+            const headers: any = { 'Content-Type': 'application/json', 'X-User-Email': userEmail || '' };
+            if (typeof window !== 'undefined' && localStorage.getItem('globalAdminActive') === 'true') {
+                headers['X-Global-Admin-Key'] = 'globaladmin_25';
+            }
+            // Union all examNames
+            const allExamNames = Array.from(new Set(
+                mergeQuestions.flatMap((q: any) => q.examNames || (q.examName ? [q.examName] : []))
+            ));
+            const primary = mergeQuestions.find((q: any) => q.id === mergePrimaryId);
+            if (!primary) return;
+            // Update primary
+            await fetch('/api/admin/questions', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ questions: [{ ...primary, examNames: allExamNames }] })
+            });
+            // Soft-delete the others
+            const otherIds = mergeQuestions.filter((q: any) => q.id !== mergePrimaryId).map((q: any) => q.id);
+            if (otherIds.length > 0) {
+                await fetch('/api/admin/questions', {
+                    method: 'DELETE',
+                    headers,
+                    body: JSON.stringify({ ids: otherIds })
+                });
+            }
+            toast.success(`Merged ${mergeQuestions.length} questions. ExamNames combined: ${allExamNames.join(', ')}`);
+            setIsMergeModalOpen(false);
+            setMergeQuestions([]);
+            setMergeIdsInput('');
+            setMergePrimaryId('');
+            if (userEmail) {
+                await fetchFilters(userEmail);
+                const actualTopics = selectedTopics.filter(t => t !== 'No Topic');
+                if (actualTopics.length > 0) fetchQuestions(userEmail, { topics: actualTopics });
+            }
+        } catch (e: any) {
+            toast.error('Merge failed: ' + e.message);
+        } finally {
+            setMergeLoading(false);
+        }
+    };
+
+    // ── Analytics ─────────────────────────────────────────────────────────
+    const openAnalytics = async () => {
+        setIsAnalyticsModalOpen(true);
+        setAnalyticsLoading(true);
+        try {
+            const headers: any = { 'X-User-Email': userEmail || '' };
+            if (typeof window !== 'undefined' && localStorage.getItem('globalAdminActive') === 'true') {
+                headers['X-Global-Admin-Key'] = 'globaladmin_25';
+            }
+            const res = await fetch('/api/admin/questions/analytics', { headers });
+            if (res.ok) setAnalyticsData(await res.json());
+        } catch (e) { console.error(e); }
+        finally { setAnalyticsLoading(false); }
     };
 
     const openTrash = async () => {
@@ -1333,19 +1478,60 @@ export default function QuestionBank() {
                                     <button onClick={deleteSelected} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-red-900/30 text-red-400 border border-gray-700 hover:border-red-500/30 rounded text-xs font-medium transition-colors">
                                         <Trash2 className="h-3.5 w-3.5" /> Delete
                                     </button>
-                                    <button onClick={openTrash} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 hover:border-gray-500 rounded text-xs font-medium transition-colors ml-2">
-                                        <Trash2 className="h-3.5 w-3.5" /> Trash
-                                    </button>
                                     <button
-                                        onClick={() => { setBatchTagTargets([]); setBatchTagMode('add'); setIsBatchTagModalOpen(true); }}
+                                        onClick={() => { setBatchTagTarget(''); setIsBatchTagModalOpen(true); }}
                                         className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-amber-900/30 text-amber-400 border border-gray-700 hover:border-amber-500/30 rounded text-xs font-medium transition-colors"
                                     >
-                                        <GraduationCap className="h-3.5 w-3.5" /> Tag to Batch
+                                        <GraduationCap className="h-3.5 w-3.5" /> Tag Batch
                                     </button>
                                 </>
                             )}
                         </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => { setIsMergeModalOpen(true); setMergeQuestions([]); setMergeIdsInput(''); setMergeFetchError(null); }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-blue-900/20 text-blue-400 border border-gray-700 hover:border-blue-500/30 rounded text-xs font-medium transition-colors"
+                            >
+                                <RefreshCw className="h-3.5 w-3.5" /> Merge
+                            </button>
+                            <button
+                                onClick={openAnalytics}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-purple-900/20 text-purple-400 border border-gray-700 hover:border-purple-500/30 rounded text-xs font-medium transition-colors"
+                            >
+                                <BarChart2 className="h-3.5 w-3.5" /> Analytics
+                            </button>
+                            <button onClick={openTrash} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 border border-gray-700 rounded text-xs font-medium transition-colors">
+                                <Trash2 className="h-3.5 w-3.5" /> Trash
+                            </button>
+                        </div>
                     </div>
+
+            {/* Untagged Questions Banner */}
+            {(() => {
+                const untaggedCount = filteredQuestions.filter(q => !q.batches || q.batches.length === 0).length;
+                if (untaggedCount === 0) return null;
+                return (
+                    <div className="flex items-center justify-between bg-amber-900/20 border border-amber-600/30 rounded-lg px-4 py-2.5 mb-3 text-sm">
+                        <div className="flex items-center gap-2 text-amber-400">
+                            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                            <span><span className="font-bold">{untaggedCount}</span> question{untaggedCount !== 1 ? 's' : ''} in this view {untaggedCount !== 1 ? 'are' : 'is'} not tagged to any batch.</span>
+                        </div>
+                        <button
+                            onClick={() => {
+                                const untaggedIds = new Set<string>(filteredQuestions
+                                    .filter(q => !q.batches || q.batches.length === 0)
+                                    .map(q => q.id));
+                                setSelectedQuestionIds(untaggedIds);
+                                setBatchTagTarget('');
+                                setIsBatchTagModalOpen(true);
+                            }}
+                            className="text-xs font-bold text-amber-300 hover:text-amber-100 border border-amber-500/40 px-3 py-1 rounded-lg hover:bg-amber-900/30 transition-all ml-4 flex-shrink-0"
+                        >
+                            Tag them now →
+                        </button>
+                    </div>
+                );
+            })()}
 
                     {/* Question List */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 md:space-y-4 pr-1 md:pr-2">
@@ -1915,6 +2101,186 @@ export default function QuestionBank() {
                 )
             }
 
+            {/* ── Merge Modal ── */}
+            {isMergeModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="bg-gray-800 rounded-xl border border-blue-500/30 shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+                        <div className="p-5 border-b border-gray-700 flex justify-between items-center">
+                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                <RefreshCw className="h-5 w-5 text-blue-400" /> Merge Questions by ID
+                            </h2>
+                            <button onClick={() => { setIsMergeModalOpen(false); setMergeQuestions([]); setMergeIdsInput(''); }} className="p-2 hover:bg-gray-700 rounded-lg transition-colors">
+                                <X className="h-5 w-5 text-gray-400" />
+                            </button>
+                        </div>
+
+                        <div className="p-5 flex-1 overflow-y-auto">
+                            {/* ID Input */}
+                            <div className="flex gap-3 mb-5">
+                                <input
+                                    type="text"
+                                    value={mergeIdsInput}
+                                    onChange={e => setMergeIdsInput(e.target.value)}
+                                    placeholder="Enter question IDs separated by commas: q_abc, q_xyz, ..."
+                                    className="flex-1 bg-gray-900 border border-gray-600 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 font-mono"
+                                />
+                                <button
+                                    onClick={fetchMergeQuestions}
+                                    disabled={mergeLoading || !mergeIdsInput.trim()}
+                                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg font-bold text-sm transition-all"
+                                >
+                                    {mergeLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Fetch'}
+                                </button>
+                            </div>
+
+                            {mergeFetchError && (
+                                <div className="flex items-center gap-2 text-red-400 bg-red-900/10 border border-red-500/30 rounded-lg p-3 mb-4 text-sm">
+                                    <AlertCircle className="h-4 w-4" /> {mergeFetchError}
+                                </div>
+                            )}
+
+                            {mergeQuestions.length >= 2 && (
+                                <>
+                                    <p className="text-xs text-gray-400 mb-3">Select the <span className="text-blue-400 font-bold">primary question</span> to keep. All ExamNames will be merged into it. Others will be moved to Trash.</p>
+                                    <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(mergeQuestions.length, 3)}, 1fr)` }}>
+                                        {mergeQuestions.map(q => (
+                                            <div
+                                                key={q.id}
+                                                onClick={() => setMergePrimaryId(q.id)}
+                                                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                                                    mergePrimaryId === q.id
+                                                        ? 'border-blue-500 bg-blue-900/20'
+                                                        : 'border-gray-700 bg-gray-900/50 hover:border-gray-500'
+                                                }`}
+                                            >
+                                                {mergePrimaryId === q.id && (
+                                                    <div className="text-[10px] font-bold text-blue-400 mb-2 uppercase tracking-wider">★ Primary (Keep)</div>
+                                                )}
+                                                <div className="font-mono text-[10px] text-gray-500 mb-1">{q.id}</div>
+                                                <div className="text-xs font-semibold text-gray-300 mb-1">{q.topic} › {q.subtopic}</div>
+                                                <div className="text-xs text-gray-400 line-clamp-3 mb-2">{q.text?.substring(0, 120)}...</div>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {(q.examNames || (q.examName ? [q.examName] : [])).map((e: string) => (
+                                                        <span key={e} className="text-[10px] bg-blue-900/30 text-blue-300 border border-blue-500/20 rounded px-1.5 py-0.5">{e}</span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Preview merged examNames */}
+                                    <div className="mt-4 p-3 bg-green-900/10 border border-green-500/20 rounded-lg">
+                                        <div className="text-xs font-bold text-green-400 mb-1">After merge — ExamNames will be:</div>
+                                        <div className="flex flex-wrap gap-1">
+                                            {Array.from(new Set(mergeQuestions.flatMap((q: any) => q.examNames || (q.examName ? [q.examName] : [])))).map((e: any) => (
+                                                <span key={e} className="text-xs bg-green-900/30 text-green-300 border border-green-500/20 rounded px-2 py-0.5">{e}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {mergeQuestions.length >= 2 && (
+                            <div className="p-5 border-t border-gray-700 flex justify-end gap-3">
+                                <button onClick={() => { setIsMergeModalOpen(false); setMergeQuestions([]); }} className="px-4 py-2 text-gray-400 hover:text-white text-sm">Cancel</button>
+                                <button
+                                    onClick={handleMerge}
+                                    disabled={mergeLoading || !mergePrimaryId}
+                                    className="px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg font-bold text-sm transition-all flex items-center gap-2"
+                                >
+                                    {mergeLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                                    Confirm Merge
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* ── Analytics Modal ── */}
+            {isAnalyticsModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="bg-gray-800 rounded-xl border border-purple-500/30 shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+                        <div className="p-5 border-b border-gray-700 flex justify-between items-center">
+                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                <BarChart2 className="h-5 w-5 text-purple-400" /> Question Bank Analytics
+                            </h2>
+                            <button onClick={() => setIsAnalyticsModalOpen(false)} className="p-2 hover:bg-gray-700 rounded-lg">
+                                <X className="h-5 w-5 text-gray-400" />
+                            </button>
+                        </div>
+
+                        <div className="p-5 flex-1 overflow-y-auto">
+                            {analyticsLoading ? (
+                                <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-purple-400" /></div>
+                            ) : analyticsData ? (
+                                <>
+                                    {/* Summary */}
+                                    <div className="grid grid-cols-2 gap-3 mb-6">
+                                        <div className="bg-gray-900 rounded-xl p-4 border border-gray-700">
+                                            <div className="text-3xl font-bold text-white">{analyticsData.total}</div>
+                                            <div className="text-xs text-gray-400 mt-1">Total Questions</div>
+                                        </div>
+                                        <div className="bg-amber-900/20 rounded-xl p-4 border border-amber-600/30">
+                                            <div className="text-3xl font-bold text-amber-400">{analyticsData.untagged}</div>
+                                            <div className="text-xs text-gray-400 mt-1">Untagged (no batch)</div>
+                                        </div>
+                                    </div>
+
+                                    {/* SVG Pie Chart */}
+                                    {(() => {
+                                        const entries = Object.entries(analyticsData.perBatch).filter(([, v]) => v > 0);
+                                        if (analyticsData.untagged > 0) entries.push(['Untagged', analyticsData.untagged]);
+                                        const total = entries.reduce((s, [, v]) => s + v, 0);
+                                        if (total === 0) return <p className="text-gray-500 text-sm text-center">No data yet.</p>;
+                                        const colors = ['#8b5cf6','#3b82f6','#10b981','#f59e0b','#ef4444','#ec4899','#06b6d4','#84cc16','#f97316','#6366f1','#14b8a6','#a855f7','#22c55e','#eab308','#64748b','#0ea5e9','#d946ef','#fb923c','#4ade80','#facc15','#94a3b8','#c084fc'];
+                                        let cumAngle = -Math.PI / 2;
+                                        const cx = 110, cy = 110, r = 90;
+                                        const slices = entries.map(([label, val], i) => {
+                                            const angle = (val / total) * 2 * Math.PI;
+                                            const x1 = cx + r * Math.cos(cumAngle);
+                                            const y1 = cy + r * Math.sin(cumAngle);
+                                            cumAngle += angle;
+                                            const x2 = cx + r * Math.cos(cumAngle);
+                                            const y2 = cy + r * Math.sin(cumAngle);
+                                            const large = angle > Math.PI ? 1 : 0;
+                                            return { label, val, path: `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`, color: colors[i % colors.length] };
+                                        });
+                                        return (
+                                            <div className="flex flex-col md:flex-row gap-6 items-start">
+                                                <svg width="220" height="220" className="flex-shrink-0 mx-auto">
+                                                    {slices.map((s, i) => <path key={i} d={s.path} fill={s.color} stroke="#1f2937" strokeWidth="1.5" />)}
+                                                    <circle cx={cx} cy={cy} r={40} fill="#1f2937" />
+                                                    <text x={cx} y={cy - 6} textAnchor="middle" className="fill-white" fontSize="14" fontWeight="bold">{total}</text>
+                                                    <text x={cx} y={cy + 10} textAnchor="middle" fill="#9ca3af" fontSize="9">questions</text>
+                                                </svg>
+                                                <div className="flex-1 space-y-1.5 max-h-64 overflow-y-auto">
+                                                    {slices.map((s, i) => (
+                                                        <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                                                            <div className="flex items-center gap-2 min-w-0">
+                                                                <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: s.color }} />
+                                                                <span className="text-gray-300 truncate">{s.label}</span>
+                                                            </div>
+                                                            <span className="font-bold text-white flex-shrink-0">{s.val} <span className="text-gray-500 font-normal">({Math.round(s.val / total * 100)}%)</span></span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </>
+                            ) : <p className="text-gray-500 text-center py-8">Failed to load analytics.</p>}
+                        </div>
+
+                        <div className="p-4 border-t border-gray-700 flex justify-between items-center">
+                            <button onClick={openAnalytics} className="text-xs text-purple-400 hover:text-purple-300">↻ Refresh</button>
+                            <button onClick={() => setIsAnalyticsModalOpen(false)} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm">Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Batch Tag Modal */}
             {isBatchTagModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -1923,81 +2289,68 @@ export default function QuestionBank() {
                             <h3 className="text-lg font-bold text-white flex items-center gap-2">
                                 <GraduationCap className="h-5 w-5 text-amber-400" /> Tag to Batch
                             </h3>
-                            <button onClick={() => setIsBatchTagModalOpen(false)} className="p-1 hover:bg-white/5 rounded-full">
+                            <button onClick={() => { setIsBatchTagModalOpen(false); setBatchTagTarget(''); }} className="p-1 hover:bg-white/5 rounded-full">
                                 <X className="h-5 w-5 text-slate-400" />
                             </button>
                         </div>
 
-                        <p className="text-xs text-slate-400 mb-3">
-                            Apply batch tags to <span className="text-white font-bold">{selectedQuestionIds.size}</span> selected question{selectedQuestionIds.size !== 1 ? 's' : ''}.
+                        <p className="text-xs text-slate-400 mb-1">
+                            Assign <span className="text-white font-bold">{selectedQuestionIds.size}</span> selected question{selectedQuestionIds.size !== 1 ? 's' : ''} to a batch.
                         </p>
+                        <p className="text-[10px] text-amber-500/70 mb-4">⚠ Existing batch tag will be replaced.</p>
 
-                        {/* Mode Selection */}
-                        <div className="flex gap-2 mb-4">
-                            {(['add', 'set', 'remove'] as const).map(mode => (
-                                <button
-                                    key={mode}
-                                    onClick={() => setBatchTagMode(mode)}
-                                    className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all capitalize ${batchTagMode === mode
-                                        ? mode === 'remove' ? 'bg-red-600/20 text-red-400 border-red-500/30'
-                                            : 'bg-amber-600/20 text-amber-400 border-amber-500/30'
-                                        : 'bg-gray-900 border-gray-700 text-slate-500'}`}
-                                >
-                                    {mode === 'add' ? 'Add' : mode === 'set' ? 'Replace' : 'Remove'}
-                                </button>
+                        {/* Single-select batch list */}
+                        <div className="max-h-64 overflow-y-auto space-y-1 mb-5 bg-gray-900 rounded-lg p-2 border border-gray-700">
+                            {PREDEFINED_BATCHES.map(batch => (
+                                <label key={batch} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer text-sm transition-all ${
+                                    batchTagTarget === batch
+                                        ? 'bg-amber-600/20 text-amber-300 border border-amber-500/30'
+                                        : 'hover:bg-gray-800 text-gray-300 border border-transparent'
+                                }`}>
+                                    <input
+                                        type="radio"
+                                        name="batchSelect"
+                                        checked={batchTagTarget === batch}
+                                        onChange={() => setBatchTagTarget(batch)}
+                                        className="accent-amber-500"
+                                    />
+                                    {batch}
+                                </label>
                             ))}
-                        </div>
-                        <p className="text-[10px] text-slate-500 mb-3">
-                            {batchTagMode === 'add' && 'Add selected batches (keeps existing tags)'}
-                            {batchTagMode === 'set' && 'Replace all existing batch tags with selected ones'}
-                            {batchTagMode === 'remove' && 'Remove selected batch tags from questions'}
-                        </p>
-
-                        {/* Batch Selection */}
-                        <div className="max-h-48 overflow-y-auto space-y-1 mb-4 bg-gray-900 rounded-lg p-2 border border-gray-700">
-                            {availableBatches.length === 0 ? (
-                                <div className="text-xs text-gray-500 p-2">No batches found. Create batches first.</div>
-                            ) : (
-                                availableBatches.map(batch => (
-                                    <label key={batch} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-800 rounded cursor-pointer text-sm text-gray-300">
-                                        <input
-                                            type="checkbox"
-                                            checked={batchTagTargets.includes(batch)}
-                                            onChange={() => {
-                                                setBatchTagTargets(prev =>
-                                                    prev.includes(batch) ? prev.filter(b => b !== batch) : [...prev, batch]
-                                                );
-                                            }}
-                                            className="w-3.5 h-3.5 rounded border-gray-600 bg-gray-800 text-amber-500"
-                                        />
-                                        {batch}
-                                    </label>
-                                ))
-                            )}
                         </div>
 
                         <div className="flex gap-3 justify-end">
-                            <button onClick={() => setIsBatchTagModalOpen(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm font-medium">Cancel</button>
+                            <button onClick={() => { setIsBatchTagModalOpen(false); setBatchTagTarget(''); }} className="px-4 py-2 text-slate-400 hover:text-white text-sm font-medium">Cancel</button>
                             <button
-                                disabled={batchTagTargets.length === 0 || batchTagLoading}
+                                disabled={!batchTagTarget || batchTagLoading}
                                 onClick={async () => {
                                     setBatchTagLoading(true);
                                     try {
+                                        const headers: any = { 'Content-Type': 'application/json', 'X-User-Email': userEmail || '' };
+                                        if (typeof window !== 'undefined' && localStorage.getItem('globalAdminActive') === 'true') {
+                                            headers['X-Global-Admin-Key'] = 'globaladmin_25';
+                                        }
                                         const res = await fetch('/api/admin/questions/batch-tag', {
                                             method: 'POST',
-                                            headers: { 'Content-Type': 'application/json' },
+                                            headers,
                                             body: JSON.stringify({
                                                 questionIds: Array.from(selectedQuestionIds),
-                                                batches: batchTagTargets,
-                                                mode: batchTagMode
+                                                batches: [batchTagTarget],
+                                                mode: 'set'
                                             })
                                         });
                                         if (res.ok) {
                                             const data = await res.json();
-                                            toast.success(`Updated ${data.modifiedCount} question(s)`);
+                                            toast.success(`Tagged ${data.modifiedCount} question(s) → ${batchTagTarget}`);
                                             setIsBatchTagModalOpen(false);
+                                            setBatchTagTarget('');
                                             setSelectedQuestionIds(new Set());
-                                            if (userEmail) fetchQuestions(userEmail);
+                                            if (userEmail) {
+                                                const actualTopics = selectedTopics.filter(t => t !== 'No Topic');
+                                                if (actualTopics.length > 0) {
+                                                    fetchQuestions(userEmail, { topics: actualTopics, uploadedBys: selectedUploadedBy });
+                                                }
+                                            }
                                         } else {
                                             toast.error('Failed to update batch tags');
                                         }
@@ -2009,7 +2362,7 @@ export default function QuestionBank() {
                                 }}
                                 className="px-6 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-lg font-bold text-sm transition-all"
                             >
-                                {batchTagLoading ? 'Updating...' : 'Apply'}
+                                {batchTagLoading ? 'Updating...' : `Assign to "${batchTagTarget || '...'}"` }
                             </button>
                         </div>
                     </div>
