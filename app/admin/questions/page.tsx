@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Loader2, Plus, FileJson, FileText, Trash2, Download, Save, X, Printer, Edit, Upload, Copy, ExternalLink, RefreshCw, Check, ChevronDown, ToggleLeft, ToggleRight, GraduationCap, ArrowLeft, ArrowRightCircle, Search, BarChart2 } from 'lucide-react';
+import { Loader2, Plus, FileJson, FileText, Trash2, Download, Save, X, Printer, Edit, Upload, Copy, ExternalLink, RefreshCw, Check, ChevronDown, ToggleLeft, ToggleRight, GraduationCap, ArrowLeft, ArrowRightCircle, Search, BarChart2, Pencil } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import 'katex/dist/katex.min.css';
 import 'katex/dist/katex.min.css';
@@ -301,6 +301,13 @@ export default function QuestionBank() {
     const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
     const [analyticsData, setAnalyticsData] = useState<{ total: number; untagged: number; perBatch: Record<string, number> } | null>(null);
     const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+    // Bulk Rename Modal State
+    const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+    const [renameField, setRenameField] = useState<'topic' | 'subtopic' | 'examName'>('topic');
+    const [renameOldValue, setRenameOldValue] = useState('');
+    const [renameNewValue, setRenameNewValue] = useState('');
+    const [renameLoading, setRenameLoading] = useState(false);
 
     // Helper: filter questions by selected batches
     const filterByBatches = (qs: any[]) => {
@@ -1484,6 +1491,17 @@ export default function QuestionBank() {
                                     >
                                         <GraduationCap className="h-3.5 w-3.5" /> Tag Batch
                                     </button>
+                                    <button
+                                        onClick={() => {
+                                            setRenameField('topic');
+                                            setRenameOldValue('');
+                                            setRenameNewValue('');
+                                            setIsRenameModalOpen(true);
+                                        }}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-cyan-900/20 text-cyan-400 border border-gray-700 hover:border-cyan-500/30 rounded text-xs font-medium transition-colors"
+                                    >
+                                        <Pencil className="h-3.5 w-3.5" /> Rename
+                                    </button>
                                 </>
                             )}
                         </div>
@@ -2280,6 +2298,147 @@ export default function QuestionBank() {
                     </div>
                 </div>
             )}
+
+            {/* ── Rename Modal ── */}
+            {isRenameModalOpen && (() => {
+                // Compute unique current values for the selected field across selected questions
+                const selectedQs = filteredQuestions.filter(q => selectedQuestionIds.has(q.id));
+                const currentValues = Array.from(new Set(
+                    selectedQs.flatMap(q => {
+                        if (renameField === 'topic') return [q.topic].filter(Boolean);
+                        if (renameField === 'subtopic') return [q.subtopic].filter(Boolean);
+                        if (renameField === 'examName') {
+                            return (q.examNames || (q.examName ? [q.examName] : []));
+                        }
+                        return [];
+                    })
+                )).sort();
+
+                return (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                        <div className="bg-gray-800 p-6 rounded-xl max-w-md w-full border border-cyan-500/30 shadow-2xl">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                    <Pencil className="h-5 w-5 text-cyan-400" /> Bulk Rename
+                                </h3>
+                                <button onClick={() => setIsRenameModalOpen(false)} className="p-1 hover:bg-white/5 rounded-full">
+                                    <X className="h-5 w-5 text-slate-400" />
+                                </button>
+                            </div>
+
+                            <p className="text-xs text-slate-400 mb-4">
+                                Renaming across <span className="text-white font-bold">{selectedQuestionIds.size}</span> selected question{selectedQuestionIds.size !== 1 ? 's' : ''}.
+                            </p>
+
+                            {/* Field selector */}
+                            <div className="flex gap-2 mb-4">
+                                {(['topic', 'subtopic', 'examName'] as const).map(f => (
+                                    <button
+                                        key={f}
+                                        onClick={() => { setRenameField(f); setRenameOldValue(''); setRenameNewValue(''); }}
+                                        className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${
+                                            renameField === f
+                                                ? 'bg-cyan-600/20 text-cyan-300 border-cyan-500/40'
+                                                : 'bg-gray-900 border-gray-700 text-slate-500 hover:text-slate-300'
+                                        }`}
+                                    >
+                                        {f === 'topic' ? 'Topic' : f === 'subtopic' ? 'Subtopic' : 'Exam Name'}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Current value picker (for examName, must pick which one to rename) */}
+                            <div className="mb-4">
+                                <label className="block text-xs text-slate-400 mb-1.5">
+                                    {renameField === 'examName' ? 'Which exam name to rename?' : 'Current value in selected questions'}
+                                </label>
+                                {currentValues.length === 0 ? (
+                                    <p className="text-xs text-gray-500 italic">No value found in selected questions.</p>
+                                ) : currentValues.length === 1 && renameField !== 'examName' ? (
+                                    <div className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white">{currentValues[0]}</div>
+                                ) : (
+                                    <div className="space-y-1 max-h-32 overflow-y-auto bg-gray-900 border border-gray-700 rounded-lg p-2">
+                                        {currentValues.map(v => (
+                                            <label key={v} className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm transition-all ${
+                                                renameOldValue === v ? 'bg-cyan-900/20 text-cyan-300' : 'text-gray-300 hover:bg-gray-800'
+                                            }`}>
+                                                <input type="radio" name="oldVal" checked={renameOldValue === v} onChange={() => setRenameOldValue(v)} className="accent-cyan-500" />
+                                                {v}
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+                                {/* Auto-set single value */}
+                                {currentValues.length === 1 && renameField !== 'examName' && renameOldValue !== currentValues[0] && (
+                                    <>{renameOldValue !== currentValues[0] ? (() => { setTimeout(() => setRenameOldValue(currentValues[0]), 0); return null; })() : null}</>
+                                )}
+                            </div>
+
+                            {/* New value input */}
+                            <div className="mb-5">
+                                <label className="block text-xs text-slate-400 mb-1.5">New name</label>
+                                <input
+                                    type="text"
+                                    value={renameNewValue}
+                                    onChange={e => setRenameNewValue(e.target.value)}
+                                    placeholder={`Enter new ${renameField === 'examName' ? 'exam name' : renameField}...`}
+                                    className="w-full bg-gray-900 border border-gray-600 focus:border-cyan-500 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none transition-colors"
+                                />
+                            </div>
+
+                            <div className="flex gap-3 justify-end">
+                                <button onClick={() => setIsRenameModalOpen(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm font-medium">Cancel</button>
+                                <button
+                                    disabled={!renameNewValue.trim() || (currentValues.length > 1 && !renameOldValue) || renameLoading}
+                                    onClick={async () => {
+                                        setRenameLoading(true);
+                                        try {
+                                            const headers: any = { 'Content-Type': 'application/json', 'X-User-Email': userEmail || '' };
+                                            if (typeof window !== 'undefined' && localStorage.getItem('globalAdminActive') === 'true') {
+                                                headers['X-Global-Admin-Key'] = 'globaladmin_25';
+                                            }
+                                            const oldVal = currentValues.length === 1 ? currentValues[0] : renameOldValue;
+                                            const res = await fetch('/api/admin/questions/rename', {
+                                                method: 'POST',
+                                                headers,
+                                                body: JSON.stringify({
+                                                    ids: Array.from(selectedQuestionIds),
+                                                    field: renameField,
+                                                    oldValue: oldVal,
+                                                    newValue: renameNewValue.trim()
+                                                })
+                                            });
+                                            if (res.ok) {
+                                                const data = await res.json();
+                                                toast.success(`Renamed ${data.modifiedCount} question(s)`);
+                                                setIsRenameModalOpen(false);
+                                                setSelectedQuestionIds(new Set());
+                                                if (userEmail) {
+                                                    await fetchFilters(userEmail);
+                                                    const actualTopics = selectedTopics.filter(t => t !== 'No Topic');
+                                                    if (actualTopics.length > 0) {
+                                                        fetchQuestions(userEmail, { topics: actualTopics, uploadedBys: selectedUploadedBy });
+                                                    }
+                                                }
+                                            } else {
+                                                const err = await res.json();
+                                                toast.error(err.error || 'Rename failed');
+                                            }
+                                        } catch (e) {
+                                            toast.error('Error renaming');
+                                        } finally {
+                                            setRenameLoading(false);
+                                        }
+                                    }}
+                                    className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white rounded-lg font-bold text-sm transition-all"
+                                >
+                                    {renameLoading ? 'Renaming...' : 'Apply Rename'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* Batch Tag Modal */}
             {isBatchTagModalOpen && (
