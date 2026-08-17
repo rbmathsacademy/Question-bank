@@ -321,13 +321,16 @@ export default function QuestionBank() {
         });
     };
 
-    // Derived Lists - Use server filters for instant dropdown, fall back to questions
+    // Derived Lists - Cascading Topics based on selected batches, exams, and subtopics
     const topics = useMemo(() => {
-        // Use server-loaded filters for the topic dropdown (instant, no questions needed)
-        if (serverFilters.topics.length > 0) {
+        const hasNarrowing = selectedExams.length > 0 || selectedBatches.length > 0 || selectedSubtopics.length > 0;
+        
+        // When no narrowing filters are selected and no questions loaded, show ALL topics from server
+        if (!hasNarrowing && questions.length === 0 && serverFilters.topics.length > 0) {
             return ["No Topic", ...serverFilters.topics];
         }
-        // Fallback: derive from loaded questions
+
+        const set = new Set<string>();
         let filtered = filterByBatches(questions);
         if (selectedSubtopics.length > 0) {
             filtered = filtered.filter(q => selectedSubtopics.includes(q.subtopic));
@@ -338,7 +341,13 @@ export default function QuestionBank() {
                 return qExams.some((e: string) => selectedExams.includes(e));
             });
         }
-        const actualTopics = Array.from(new Set(filtered.map(q => q.topic))).sort();
+        filtered.forEach(q => set.add(q.topic));
+        
+        // Also merge serverFilters when no narrowing is active
+        if (!hasNarrowing && serverFilters.topics.length > 0) {
+            serverFilters.topics.forEach((t: string) => set.add(t));
+        }
+        const actualTopics = Array.from(set).filter(Boolean).sort();
         return ["No Topic", ...actualTopics];
     }, [questions, selectedSubtopics, selectedExams, selectedBatches, serverFilters]);
 
@@ -552,11 +561,21 @@ export default function QuestionBank() {
     useEffect(() => {
         if (!userEmail || selectedExams.length === 0) return;
         const actualTopics = selectedTopics.filter(t => t !== 'No Topic');
-        if (actualTopics.length === 0) {
-            // No topic selected — fetch by exam so the question list populates
+        if (actualTopics.length === 0 && selectedBatches.length === 0) {
+            // No topic and no batch selected — fetch by exam so the question list populates
             fetchQuestions(userEmail, { exams: selectedExams, uploadedBys: selectedUploadedBy });
         }
     }, [selectedExams]);
+
+    // When a batch is selected without a topic, fetch questions by batch so topics can cascade
+    useEffect(() => {
+        if (!userEmail || selectedBatches.length === 0) return;
+        const actualTopics = selectedTopics.filter(t => t !== 'No Topic');
+        if (actualTopics.length === 0) {
+            // No topic selected — fetch by batch so the question list populates
+            fetchQuestions(userEmail, { batches: selectedBatches, exams: selectedExams, uploadedBys: selectedUploadedBy });
+        }
+    }, [selectedBatches]);
 
     // Global search handler
     const handleGlobalSearch = async () => {
@@ -1401,7 +1420,16 @@ export default function QuestionBank() {
                             <MultiSelect options={examNames} selected={selectedExams} onChange={setSelectedExams} placeholder="All Exams" />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs font-medium text-gray-500 ml-1">Batch</label>
+                            <div className="flex justify-between items-center ml-1">
+                                <label className="text-xs font-medium text-gray-500">Batch</label>
+                                <button 
+                                    onClick={() => setSelectedBatches(['Untagged'])}
+                                    className="text-[10px] text-amber-500 hover:text-amber-400 font-bold transition-colors"
+                                    title="Show topics with questions not linked to any batch"
+                                >
+                                    Untagged Topics
+                                </button>
+                            </div>
                             <MultiSelect options={availableBatchNames} selected={selectedBatches} onChange={setSelectedBatches} placeholder="All Batches" />
                         </div>
                         <div className="space-y-1">
