@@ -770,76 +770,82 @@ export default function QuestionBank() {
     };
 
     const saveToDatabase = async (questionsToSave?: any[]) => {
-        const toSaveRaw = questionsToSave || previewContent;
-        if (toSaveRaw.length === 0) {
-            if (jsonError) {
-                alert(`Cannot save. Please fix the JSON syntax error:\n${jsonError}`);
-            } else {
-                alert('No valid questions found to save. Please check your JSON format.');
-            }
-            return;
-        }
-        const invalid = toSaveRaw.find((q: any) => !q.topic || !q.subtopic || !q.text);
-        if (invalid) {
-            alert('All questions must have a Topic, Subtopic, and Text.');
-            return;
-        }
-
-        const toSave = toSaveRaw.map((q: any) => ({
-            ...q,
-            id: q.id || `q_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            topic: q.topic.charAt(0).toUpperCase() + q.topic.slice(1),
-            subtopic: q.subtopic.charAt(0).toUpperCase() + q.subtopic.slice(1),
-            type: q.type || 'broad'
-        }));
-
-        // ── ID Clash Check ──────────────────────────────────────────────
-        // Before saving, check if any incoming IDs already exist in the DB
-        // for a DIFFERENT question (different text). This prevents silent overwrites.
         try {
-            const incomingIds = toSave.map((q: any) => q.id).filter(Boolean);
-            if (incomingIds.length > 0) {
-                const headers: any = { 'Content-Type': 'application/json', 'X-User-Email': userEmail || '' };
-                if (typeof window !== 'undefined' && localStorage.getItem('globalAdminActive') === 'true') {
-                    headers['X-Global-Admin-Key'] = 'globaladmin_25';
+            const toSaveRaw = questionsToSave || previewContent;
+            console.log('[saveToDatabase] Called. previewContent length:', previewContent.length, 'toSaveRaw length:', toSaveRaw.length);
+            if (toSaveRaw.length === 0) {
+                if (jsonError) {
+                    alert(`Cannot save. Please fix the JSON syntax error:\n${jsonError}`);
+                } else {
+                    alert('No valid questions found to save. Please check your JSON format.');
                 }
-                const checkRes = await fetch('/api/admin/questions/check-id-clash', {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify({ ids: incomingIds })
-                });
-                if (checkRes.ok) {
-                    const { clashes } = await checkRes.json();
-                    if (clashes && clashes.length > 0) {
-                        // Build clash pairs: incoming question vs existing DB question
-                        const clashPairs = clashes.map((existing: any) => ({
-                            incoming: toSave.find((q: any) => q.id === existing.id),
-                            existing
-                        })).filter((c: any) => {
-                            if (!c.incoming) return false;
-                            // Exclude if it's the exact question we clicked 'Edit' on
-                            if (c.incoming.id === lastEditedId.current) return false;
-                            // Exclude if the text is completely identical (harmless overwrite)
-                            if (c.incoming.text.trim() === c.existing.text.trim()) return false;
-                            return true;
-                        });
+                return;
+            }
+            const invalid = toSaveRaw.find((q: any) => !q.topic || !q.subtopic || !q.text);
+            if (invalid) {
+                alert('All questions must have a Topic, Subtopic, and Text.');
+                return;
+            }
 
-                        if (clashPairs.length > 0) {
-                            setIdClashQuestions(clashPairs);
-                            setPendingSaveQuestions(toSave);
-                            setIsIdClashModalOpen(true);
-                            return; // Stop — wait for admin to decide
+            const toSave = toSaveRaw.map((q: any) => ({
+                ...q,
+                id: q.id || `q_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                topic: q.topic.charAt(0).toUpperCase() + q.topic.slice(1),
+                subtopic: q.subtopic.charAt(0).toUpperCase() + q.subtopic.slice(1),
+                type: q.type || 'broad'
+            }));
+
+            // ── ID Clash Check ──────────────────────────────────────────────
+            // Before saving, check if any incoming IDs already exist in the DB
+            // for a DIFFERENT question (different text). This prevents silent overwrites.
+            try {
+                const incomingIds = toSave.map((q: any) => q.id).filter(Boolean);
+                if (incomingIds.length > 0) {
+                    const headers: any = { 'Content-Type': 'application/json', 'X-User-Email': userEmail || '' };
+                    if (typeof window !== 'undefined' && localStorage.getItem('globalAdminActive') === 'true') {
+                        headers['X-Global-Admin-Key'] = 'globaladmin_25';
+                    }
+                    const checkRes = await fetch('/api/admin/questions/check-id-clash', {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({ ids: incomingIds })
+                    });
+                    if (checkRes.ok) {
+                        const { clashes } = await checkRes.json();
+                        if (clashes && clashes.length > 0) {
+                            // Build clash pairs: incoming question vs existing DB question
+                            const clashPairs = clashes.map((existing: any) => ({
+                                incoming: toSave.find((q: any) => q.id === existing.id),
+                                existing
+                            })).filter((c: any) => {
+                                if (!c.incoming) return false;
+                                // Exclude if it's the exact question we clicked 'Edit' on
+                                if (c.incoming.id === lastEditedId.current) return false;
+                                // Exclude if the text is completely identical (harmless overwrite)
+                                if (c.incoming.text.trim() === c.existing.text.trim()) return false;
+                                return true;
+                            });
+
+                            if (clashPairs.length > 0) {
+                                setIdClashQuestions(clashPairs);
+                                setPendingSaveQuestions(toSave);
+                                setIsIdClashModalOpen(true);
+                                return; // Stop — wait for admin to decide
+                            }
                         }
                     }
                 }
+            } catch (e) {
+                // If clash check fails, proceed with save (fail-open)
+                console.warn('ID clash check failed, proceeding with save:', e);
             }
-        } catch (e) {
-            // If clash check fails, proceed with save (fail-open)
-            console.warn('ID clash check failed, proceeding with save:', e);
-        }
-        // ────────────────────────────────────────────────────────────────
+            // ────────────────────────────────────────────────────────────────
 
-        await performSave(toSave);
+            await performSave(toSave);
+        } catch (error: any) {
+            console.error('[saveToDatabase] UNCAUGHT ERROR:', error);
+            alert(`Save failed with an unexpected error:\n${error?.message || error}`);
+        }
     };
 
     // Auto-fix clashing IDs by appending 6 random chars, then save
