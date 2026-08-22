@@ -771,7 +771,14 @@ export default function QuestionBank() {
 
     const saveToDatabase = async (questionsToSave?: any[]) => {
         const toSaveRaw = questionsToSave || previewContent;
-        if (toSaveRaw.length === 0) return;
+        if (toSaveRaw.length === 0) {
+            if (jsonError) {
+                alert(`Cannot save. Please fix the JSON syntax error:\n${jsonError}`);
+            } else {
+                alert('No valid questions found to save. Please check your JSON format.');
+            }
+            return;
+        }
         const invalid = toSaveRaw.find((q: any) => !q.topic || !q.subtopic || !q.text);
         if (invalid) {
             alert('All questions must have a Topic, Subtopic, and Text.');
