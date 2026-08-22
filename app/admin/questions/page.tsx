@@ -920,6 +920,12 @@ export default function QuestionBank() {
 
                 lastEditedId.current = null;
             } else {
+                let errMsg = 'Failed to save.';
+                try {
+                    const errData = await res.json();
+                    if (errData.error) errMsg = `API Error: ${errData.error}`;
+                } catch (e) {}
+                alert(errMsg);
                 toast.error('Failed to save.');
             }
         } catch (error) {

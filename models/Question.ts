@@ -12,7 +12,7 @@ const QuestionSchema = new mongoose.Schema({
     examName: { type: String }, // Backwards compatibility
     examNames: { type: [String], default: [] }, // Multiple Exams
     batches: { type: [String], default: [] }, // Batch tags for filtering
-    marks: { type: Number },    // Marks for the question
+    marks: { type: mongoose.Schema.Types.Mixed }, // Marks (can be Number or String like "1+1")
     answer: { type: String },   // Correct Answer
     options: { type: [String] }, // MCQ Options
     hint: { type: String },     // Hint
