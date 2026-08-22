@@ -815,7 +815,14 @@ export default function QuestionBank() {
                         const clashPairs = clashes.map((existing: any) => ({
                             incoming: toSave.find((q: any) => q.id === existing.id),
                             existing
-                        })).filter((c: any) => c.incoming);
+                        })).filter((c: any) => {
+                            if (!c.incoming) return false;
+                            // Exclude if it's the exact question we clicked 'Edit' on
+                            if (c.incoming.id === lastEditedId.current) return false;
+                            // Exclude if the text is completely identical (harmless overwrite)
+                            if (c.incoming.text.trim() === c.existing.text.trim()) return false;
+                            return true;
+                        });
 
                         if (clashPairs.length > 0) {
                             setIdClashQuestions(clashPairs);
