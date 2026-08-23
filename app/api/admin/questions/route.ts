@@ -191,7 +191,9 @@ export async function POST(req: Request) {
                 hint: q.hint,
                 explanation: q.explanation,
                 uploadedBy: uploaderEmail,
-                facultyName: facultyName
+                facultyName: facultyName,
+                deleted: false,
+                deletedAt: null
             };
 
             if (q.order !== undefined && q.order !== null) {
