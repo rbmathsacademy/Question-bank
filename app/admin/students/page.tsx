@@ -14,6 +14,7 @@ interface Student {
     email?: string;
     schoolName?: string;
     board?: string;
+    guestClass?: string;
     createdAt: string;
 }
 
@@ -25,13 +26,17 @@ export default function AdminStudents() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [batchFilter, setBatchFilter] = useState('');
+    const [schoolFilter, setSchoolFilter] = useState('');
+    const [classFilter, setClassFilter] = useState('');
     const [batches, setBatches] = useState<string[]>([]);
+    const [schools, setSchools] = useState<string[]>([]);
 
     // Modal states
     const [showAddModal, setShowAddModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showBulkModal, setShowBulkModal] = useState(false);
     const [showRenameBatchModal, setShowRenameBatchModal] = useState(false);
+    const [showRenameSchoolModal, setShowRenameSchoolModal] = useState(false);
     const [showRecycleBinModal, setShowRecycleBinModal] = useState(false);
     const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
@@ -44,6 +49,9 @@ export default function AdminStudents() {
 
     // Rename batch form
     const [renameBatchForm, setRenameBatchForm] = useState({ oldBatch: '', newBatch: '' });
+
+    // Rename school form
+    const [renameSchoolForm, setRenameSchoolForm] = useState({ oldSchool: '', newSchool: '' });
 
     // Form state
     const [form, setForm] = useState({
@@ -58,8 +66,10 @@ export default function AdminStudents() {
         setLoading(true);
         try {
             const params = new URLSearchParams({ page: String(page), limit: '25' });
-            if (search) params.set('search', search);
-            if (batchFilter) params.set('batch', batchFilter);
+            if (search)       params.set('search', search);
+            if (batchFilter)  params.set('batch', batchFilter);
+            if (schoolFilter) params.set('school', schoolFilter);
+            if (classFilter)  params.set('class', classFilter);
 
             const res = await fetch(`/api/admin/students?${params}`, { cache: 'no-store' });
             if (!res.ok) throw new Error('Failed to fetch');
@@ -72,7 +82,7 @@ export default function AdminStudents() {
         } finally {
             setLoading(false);
         }
-    }, [page, search, batchFilter]);
+    }, [page, search, batchFilter, schoolFilter, classFilter]);
 
     const fetchBatches = async () => {
         try {
@@ -84,7 +94,17 @@ export default function AdminStudents() {
         } catch { }
     };
 
-    useEffect(() => { fetchBatches(); }, []);
+    const fetchSchools = async () => {
+        try {
+            const res = await fetch('/api/admin/students/schools');
+            if (res.ok) {
+                const data = await res.json();
+                setSchools(data.schools || []);
+            }
+        } catch { }
+    };
+
+    useEffect(() => { fetchBatches(); fetchSchools(); }, []);
     useEffect(() => { fetchStudents(); }, [fetchStudents]);
 
     // Debounced search
@@ -329,6 +349,49 @@ export default function AdminStudents() {
         return Array.from(allBatches);
     };
 
+    // Derive the school name common to selected students (for rename school modal)
+    const getCommonSchool = (): string => {
+        const selected = students.filter(s => selectedStudents.has(s._id));
+        if (selected.length === 0) return '';
+        const schools = Array.from(new Set(selected.map(s => s.schoolName || '').filter(Boolean)));
+        return schools.length === 1 ? schools[0] : '';
+    };
+
+    const handleRenameSchool = async () => {
+        if (!renameSchoolForm.oldSchool || !renameSchoolForm.newSchool.trim()) {
+            toast.error('Please enter a new school name');
+            return;
+        }
+        if (renameSchoolForm.oldSchool.trim() === renameSchoolForm.newSchool.trim()) {
+            toast.error('Old and new school names are the same');
+            return;
+        }
+        const toastId = toast.loading('Renaming school...');
+        try {
+            const userStr = localStorage.getItem('user');
+            const email = userStr ? JSON.parse(userStr).email : '';
+            const res = await fetch('/api/admin/students/rename-school', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-User-Email': email },
+                body: JSON.stringify({
+                    studentIds: Array.from(selectedStudents),
+                    oldSchool: renameSchoolForm.oldSchool,
+                    newSchool: renameSchoolForm.newSchool.trim()
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+            toast.success(data.message, { id: toastId });
+            setShowRenameSchoolModal(false);
+            setRenameSchoolForm({ oldSchool: '', newSchool: '' });
+            setSelectedStudents(new Set());
+            fetchStudents();
+            fetchSchools();
+        } catch (error: any) {
+            toast.error(error.message || 'Rename failed', { id: toastId });
+        }
+    };
+
     const addCourseToForm = () => {
         const course = newCourseInput.trim();
         if (course && !form.courses.includes(course)) {
@@ -502,8 +565,8 @@ export default function AdminStudents() {
             </div>
 
             {/* Search and Filter Bar */}
-            <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
+            <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+                <div className="relative flex-1 min-w-[200px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
                     <input
                         type="text" value={search}
@@ -512,13 +575,44 @@ export default function AdminStudents() {
                         placeholder="Search by name or phone..."
                     />
                 </div>
+                {/* Batch filter */}
                 <select
                     value={batchFilter}
                     onChange={e => { setBatchFilter(e.target.value); setPage(1); }}
-                    className="px-4 py-2.5 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-blue-500 w-full sm:w-auto min-w-[180px]"
+                    className="px-4 py-2.5 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-blue-500 w-full sm:w-auto min-w-[160px]"
                 >
                     <option value="" className="bg-slate-800 text-white">All Batches</option>
                     {batches.map(b => <option key={b} value={b} className="bg-slate-800 text-white">{b}</option>)}
+                </select>
+                {/* School filter — selecting auto-ticks all visible students of that school */}
+                <select
+                    value={schoolFilter}
+                    onChange={e => {
+                        const selected = e.target.value;
+                        setSchoolFilter(selected);
+                        setPage(1);
+                        if (selected) {
+                            // Auto-check all students matching this school in the current view
+                            const matching = students.filter(s => s.schoolName === selected).map(s => s._id);
+                            setSelectedStudents(new Set(matching));
+                        } else {
+                            setSelectedStudents(new Set());
+                        }
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-blue-500 w-full sm:w-auto min-w-[180px]"
+                >
+                    <option value="" className="bg-slate-800 text-white">All Schools</option>
+                    {schools.map(s => <option key={s} value={s} className="bg-slate-800 text-white">{s}</option>)}
+                </select>
+                {/* Class filter */}
+                <select
+                    value={classFilter}
+                    onChange={e => { setClassFilter(e.target.value); setPage(1); }}
+                    className="px-4 py-2.5 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-blue-500 w-full sm:w-auto min-w-[140px]"
+                >
+                    <option value="" className="bg-slate-800 text-white">All Classes</option>
+                    <option value="XI" className="bg-slate-800 text-white">Class XI</option>
+                    <option value="XII" className="bg-slate-800 text-white">Class XII</option>
                 </select>
             </div>
 
@@ -536,6 +630,15 @@ export default function AdminStudents() {
                             className="px-3 py-2 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 font-bold text-xs hover:bg-amber-600/30 transition-all flex items-center gap-2">
                             <RefreshCw className="h-3 w-3" />
                             Rename Batch
+                        </button>
+                        <button onClick={() => {
+                            const common = getCommonSchool();
+                            setRenameSchoolForm({ oldSchool: common, newSchool: '' });
+                            setShowRenameSchoolModal(true);
+                        }}
+                            className="px-3 py-2 rounded-xl bg-teal-600/20 border border-teal-500/30 text-teal-300 font-bold text-xs hover:bg-teal-600/30 transition-all flex items-center gap-2">
+                            <RefreshCw className="h-3 w-3" />
+                            Rename School
                         </button>
                         <button onClick={handleBulkDelete}
                             className="px-3 py-2 rounded-xl bg-red-600/20 border border-red-500/30 text-red-300 font-bold text-xs hover:bg-red-600/30 transition-all flex items-center gap-2">
@@ -599,11 +702,23 @@ export default function AdminStudents() {
                                                 <p className="font-bold text-white truncate">{student.name}</p>
                                                 <p className="text-[10px] text-slate-500 sm:hidden">{student.phoneNumber}</p>
                                                 {student.email && <p className="text-[10px] text-slate-500 truncate hidden sm:block">{student.email}</p>}
-                                                {student.board && (
-                                                    <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 text-[9px] font-bold border border-emerald-500/20">
-                                                        {student.board}
-                                                    </span>
-                                                )}
+                                                <div className="flex flex-wrap gap-1 mt-0.5">
+                                                    {student.board && (
+                                                        <span className="inline-block px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 text-[9px] font-bold border border-emerald-500/20">
+                                                            {student.board}
+                                                        </span>
+                                                    )}
+                                                    {student.guestClass && (
+                                                        <span className="inline-block px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 text-[9px] font-bold border border-purple-500/20">
+                                                            Class {student.guestClass}
+                                                        </span>
+                                                    )}
+                                                    {student.schoolName && (
+                                                        <span className="inline-block px-1.5 py-0.5 rounded bg-teal-500/15 text-teal-400 text-[9px] font-bold border border-teal-500/20 max-w-[140px] truncate" title={student.schoolName}>
+                                                            {student.schoolName}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </td>
@@ -805,6 +920,56 @@ export default function AdminStudents() {
                                 <button onClick={handleRenameBatch}
                                     className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 text-white font-bold text-sm hover:from-amber-500 hover:to-orange-500 shadow-lg shadow-amber-500/20">
                                     Rename Batch
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Rename School Modal */}
+            {showRenameSchoolModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setShowRenameSchoolModal(false)}>
+                    <div className="bg-[#0f172a] border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between p-5 border-b border-white/10">
+                            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                                <RefreshCw className="h-5 w-5 text-teal-400" /> Rename School
+                            </h2>
+                            <button onClick={() => setShowRenameSchoolModal(false)} className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400"><X className="h-5 w-5" /></button>
+                        </div>
+                        <div className="p-5 space-y-4">
+                            <div className="p-3 rounded-xl bg-teal-500/10 border border-teal-500/20 text-xs text-teal-300">
+                                <p className="font-bold mb-1">This will rename the school for {selectedStudents.size} selected student(s).</p>
+                                <p className="text-slate-400">The school name will be updated in each student's profile automatically.</p>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Current School *</label>
+                                <select
+                                    value={renameSchoolForm.oldSchool}
+                                    onChange={e => setRenameSchoolForm({ ...renameSchoolForm, oldSchool: e.target.value })}
+                                    className="w-full px-4 py-2.5 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-teal-500"
+                                >
+                                    <option value="" className="bg-slate-800 text-white">Select school to rename...</option>
+                                    {schools.map(s => (
+                                        <option key={s} value={s} className="bg-slate-800 text-white">{s}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">New School Name *</label>
+                                <input
+                                    type="text" value={renameSchoolForm.newSchool}
+                                    onChange={e => setRenameSchoolForm({ ...renameSchoolForm, newSchool: e.target.value })}
+                                    className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/50"
+                                    placeholder="Enter new school name"
+                                />
+                            </div>
+                            <div className="flex gap-3 mt-6">
+                                <button onClick={() => setShowRenameSchoolModal(false)}
+                                    className="flex-1 py-2.5 rounded-xl border border-white/10 text-slate-400 font-bold text-sm hover:bg-white/5">Cancel</button>
+                                <button onClick={handleRenameSchool}
+                                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-cyan-600 text-white font-bold text-sm hover:from-teal-500 hover:to-cyan-500 shadow-lg shadow-teal-500/20">
+                                    Rename School
                                 </button>
                             </div>
                         </div>

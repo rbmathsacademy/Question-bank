@@ -13,6 +13,8 @@ export async function GET(req: NextRequest) {
         const { searchParams } = new URL(req.url);
         const batch = searchParams.get('batch');
         const search = searchParams.get('search');
+        const school = searchParams.get('school');
+        const cls = searchParams.get('class');
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '50');
 
@@ -21,6 +23,16 @@ export async function GET(req: NextRequest) {
         if (batch) {
             const escapedBatch = batch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             query.courses = { $regex: new RegExp(`^${escapedBatch}$`, 'i') };
+        }
+
+        if (school) {
+            const escapedSchool = school.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            query.schoolName = { $regex: new RegExp(`^${escapedSchool}$`, 'i') };
+        }
+
+        if (cls) {
+            const escapedCls = cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            query.guestClass = { $regex: new RegExp(`^${escapedCls}$`, 'i') };
         }
 
         if (search) {
@@ -34,7 +46,7 @@ export async function GET(req: NextRequest) {
 
         const [students, total] = await Promise.all([
             BatchStudent.find(query)
-                .select('name phoneNumber courses guardianPhone guardianName email schoolName board createdAt')
+                .select('name phoneNumber courses guardianPhone guardianName email schoolName board guestClass createdAt')
                 .lean()
                 .sort({ name: 1 })
                 .skip((page - 1) * limit)
