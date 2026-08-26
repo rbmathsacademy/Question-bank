@@ -15,8 +15,11 @@ export default function SurveyMonitorPage({ params }: { params: Promise<{ id: st
     const [batchFilter, setBatchFilter] = useState('');
     const [excludePhones, setExcludePhones] = useState<string[]>([]);
     const [searchStudent, setSearchStudent] = useState('');
-    const [filterQuestionId, setFilterQuestionId] = useState('');
-    const [filterAnswer, setFilterAnswer] = useState('');
+    // Multi-filter: each entry is { questionId, answer }
+    const [activeFilters, setActiveFilters] = useState<{ questionId: string; answer: string }[]>([]);
+    // Picker state for adding a new filter
+    const [pendingQuestionId, setPendingQuestionId] = useState('');
+    const [pendingAnswer, setPendingAnswer] = useState('');
     const [showDeployModal, setShowDeployModal] = useState(false);
     const [showNotificationModal, setShowNotificationModal] = useState(false);
     const [availableTests, setAvailableTests] = useState<any[]>([]);
@@ -219,14 +222,16 @@ export default function SurveyMonitorPage({ params }: { params: Promise<{ id: st
         }));
         sessionStorage.setItem('surveyDeployStudents', JSON.stringify(studentsToDeploy));
         
-        let optionText = filterAnswer;
-        if (filterQuestionId && filterAnswer !== '') {
-            const q = data.survey.questions.find((q: any) => q.id === filterQuestionId);
+        // Build title from all active filter labels
+        const filterLabels = activeFilters.map(f => {
+            if (!f.answer) return null;
+            const q = data?.survey?.questions?.find((q: any) => q.id === f.questionId);
             if (q && (q.type === 'mcq' || q.type === 'checkbox')) {
-                optionText = q.options[parseInt(filterAnswer)] || filterAnswer;
+                return q.options[parseInt(f.answer)] || f.answer;
             }
-        }
-        const title = encodeURIComponent(`${optionText ? optionText + ' || ' : ''}Exam Practice Test`);
+            return f.answer;
+        }).filter(Boolean);
+        const title = encodeURIComponent(`${filterLabels.length > 0 ? filterLabels.join(' & ') + ' || ' : ''}Exam Practice Test`);
         router.push(`/admin/online-tests/create?title=${title}`);
     };
 
@@ -236,15 +241,17 @@ export default function SurveyMonitorPage({ params }: { params: Promise<{ id: st
     const { survey, analytics, responses, availableStudents = [] } = data;
 
     const filteredResponses = responses.filter((r: any) => {
-        if (!filterQuestionId || filterAnswer === '') return true;
-        const ansObj = r.answers.find((a: any) => a.questionId === filterQuestionId);
-        if (!ansObj) return false;
-        
-        const q = survey.questions.find((q: any) => q.id === filterQuestionId);
-        if (q.type === 'checkbox' && Array.isArray(ansObj.answer)) {
-            return ansObj.answer.map(String).includes(String(filterAnswer));
-        }
-        return String(ansObj.answer) === String(filterAnswer);
+        // Must match every active filter (AND logic)
+        return activeFilters.every(({ questionId, answer }) => {
+            if (!questionId || answer === '') return true;
+            const ansObj = r.answers.find((a: any) => a.questionId === questionId);
+            if (!ansObj) return false;
+            const q = survey.questions.find((q: any) => q.id === questionId);
+            if (q?.type === 'checkbox' && Array.isArray(ansObj.answer)) {
+                return ansObj.answer.map(String).includes(String(answer));
+            }
+            return String(ansObj.answer) === String(answer);
+        });
     });
 
     const filteredStudents = availableStudents.filter((s: any) => 
@@ -426,37 +433,85 @@ export default function SurveyMonitorPage({ params }: { params: Promise<{ id: st
                         {Object.keys(analytics.batchBreakdown).map(b => <option key={b} value={b}>{b}</option>)}
                     </select>
                     
-                    <select
-                        value={filterQuestionId}
-                        onChange={e => { setFilterQuestionId(e.target.value); setFilterAnswer(''); }}
-                        className="px-3 py-2 rounded-lg bg-slate-800 border border-white/10 text-sm text-white focus:outline-none focus:border-blue-500 max-w-xs truncate"
-                    >
-                        <option value="">All Questions</option>
-                        {survey.questions.map((q: any) => <option key={q.id} value={q.id}>{q.text}</option>)}
-                    </select>
+                    {/* Active Filter Chips */}
+                    {activeFilters.length > 0 && (
+                        <div className="flex flex-wrap gap-2 w-full">
+                            {activeFilters.map((f, idx) => {
+                                const q = survey.questions.find((q: any) => q.id === f.questionId);
+                                const qLabel = q ? q.text.substring(0, 40) + (q.text.length > 40 ? '…' : '') : f.questionId;
+                                let aLabel = f.answer;
+                                if (q && (q.type === 'mcq' || q.type === 'checkbox')) {
+                                    aLabel = q.options[parseInt(f.answer)] ?? f.answer;
+                                }
+                                return (
+                                    <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-300 text-xs font-medium">
+                                        <span className="text-slate-400 font-normal">{qLabel}:</span> {aLabel}
+                                        <button
+                                            onClick={() => setActiveFilters(prev => prev.filter((_, i) => i !== idx))}
+                                            className="ml-0.5 text-blue-400 hover:text-white transition-colors"
+                                            title="Remove filter"
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </button>
+                                    </span>
+                                );
+                            })}
+                            <button
+                                onClick={() => setActiveFilters([])}
+                                className="px-2.5 py-1 rounded-lg bg-slate-700 text-slate-400 hover:text-white text-xs transition-colors"
+                            >
+                                Clear all
+                            </button>
+                        </div>
+                    )}
 
-                    {filterQuestionId && (
+                    {/* Add Filter Picker */}
+                    <div className="flex flex-wrap gap-2 items-center w-full">
                         <select
-                            value={filterAnswer}
-                            onChange={e => setFilterAnswer(e.target.value)}
+                            value={pendingQuestionId}
+                            onChange={e => { setPendingQuestionId(e.target.value); setPendingAnswer(''); }}
                             className="px-3 py-2 rounded-lg bg-slate-800 border border-white/10 text-sm text-white focus:outline-none focus:border-blue-500 max-w-xs truncate"
                         >
-                            <option value="">Any Answer</option>
-                            {(() => {
-                                const q = survey.questions.find((q: any) => q.id === filterQuestionId);
-                                if (!q) return null;
-                                if (q.type === 'mcq' || q.type === 'checkbox') {
-                                    return q.options.map((opt: string, idx: number) => <option key={idx} value={idx}>{opt}</option>);
-                                } else {
-                                    const uniqueAns = Array.from(new Set<string>(responses.map((r: any) => {
-                                        const a = r.answers.find((ans: any) => ans.questionId === filterQuestionId);
-                                        return a ? String(a.answer) : null;
-                                    }).filter(Boolean) as string[]));
-                                    return uniqueAns.map(ans => <option key={ans} value={ans}>{ans}</option>);
-                                }
-                            })()}
+                            <option value="">+ Add Question Filter</option>
+                            {survey.questions.map((q: any) => <option key={q.id} value={q.id}>{q.text}</option>)}
                         </select>
-                    )}
+
+                        {pendingQuestionId && (
+                            <select
+                                value={pendingAnswer}
+                                onChange={e => setPendingAnswer(e.target.value)}
+                                className="px-3 py-2 rounded-lg bg-slate-800 border border-white/10 text-sm text-white focus:outline-none focus:border-blue-500 max-w-xs truncate"
+                            >
+                                <option value="">Select Answer…</option>
+                                {(() => {
+                                    const q = survey.questions.find((q: any) => q.id === pendingQuestionId);
+                                    if (!q) return null;
+                                    if (q.type === 'mcq' || q.type === 'checkbox') {
+                                        return q.options.map((opt: string, idx: number) => <option key={idx} value={idx}>{opt}</option>);
+                                    } else {
+                                        const uniqueAns = Array.from(new Set<string>(responses.map((r: any) => {
+                                            const a = r.answers.find((ans: any) => ans.questionId === pendingQuestionId);
+                                            return a ? String(a.answer) : null;
+                                        }).filter(Boolean) as string[]));
+                                        return uniqueAns.map(ans => <option key={ans} value={ans}>{ans}</option>);
+                                    }
+                                })()}
+                            </select>
+                        )}
+
+                        {pendingQuestionId && pendingAnswer !== '' && (
+                            <button
+                                onClick={() => {
+                                    setActiveFilters(prev => [...prev, { questionId: pendingQuestionId, answer: pendingAnswer }]);
+                                    setPendingQuestionId('');
+                                    setPendingAnswer('');
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-colors flex items-center gap-1"
+                            >
+                                <Plus className="h-3 w-3" /> Apply Filter
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 <div className="overflow-x-auto">

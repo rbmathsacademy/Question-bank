@@ -24,6 +24,8 @@ export default function DeployTestPage() {
     const [selectedStudents, setSelectedStudents] = useState<Student[]>([]);
     const [deploymentMode, setDeploymentMode] = useState<'all' | 'specific'>('all');
     const initializedFromSurveyRef = useRef(false);
+    // Stores the survey students so we can re-apply them after fetchStudents() resolves
+    const surveyStudentsRef = useRef<Student[]>([]);
 
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
@@ -51,6 +53,7 @@ export default function DeployTestPage() {
                 const parsed = JSON.parse(storedStudents);
                 if (Array.isArray(parsed) && parsed.length > 0) {
                     initializedFromSurveyRef.current = true;
+                    surveyStudentsRef.current = parsed;
                     setDeploymentMode('specific');
                     setSelectedStudents(parsed);
                     // Extract unique batches from these students
@@ -69,7 +72,10 @@ export default function DeployTestPage() {
             fetchStudents();
         } else {
             setStudents([]);
-            setSelectedStudents([]);
+            // Only wipe selectedStudents if we are NOT in a survey-initialized flow
+            if (!initializedFromSurveyRef.current) {
+                setSelectedStudents([]);
+            }
         }
     }, [selectedBatches]);
 
@@ -201,6 +207,12 @@ export default function DeployTestPage() {
             if (Array.isArray(data)) {
                 setStudents(data);
                 console.log('Students loaded:', data.length);
+
+                // If this load was triggered by a survey deployment, re-apply the
+                // pre-selected students so they remain checked in the UI.
+                if (initializedFromSurveyRef.current && surveyStudentsRef.current.length > 0) {
+                    setSelectedStudents(surveyStudentsRef.current);
+                }
             } else {
                 console.error('Invalid students data received from API:', data);
                 console.error('Data type:', typeof data);

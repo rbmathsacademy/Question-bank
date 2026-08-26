@@ -53,6 +53,19 @@ export async function GET(
             }
         });
 
+        // If the test was deployed to specific students only, restrict studentMap to those phones.
+        // This ensures the "Not Started" (missed) list and analytics reflect only targeted students,
+        // not every student in the batch.
+        const specificDeployStudents: any[] = test.deployment?.students || [];
+        if (specificDeployStudents.length > 0) {
+            const specificPhones = new Set(specificDeployStudents.map((s: any) => s.phoneNumber));
+            for (const phone of Array.from(studentMap.keys())) {
+                if (!specificPhones.has(phone)) {
+                    studentMap.delete(phone);
+                }
+            }
+        }
+
         // Get all attempts for this test
         const attempts = await StudentTestAttempt.find({ testId });
 
