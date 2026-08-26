@@ -8,7 +8,16 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
     try {
         await dbConnect();
-        const schools = await BatchStudent.distinct('schoolName', { schoolName: { $exists: true, $nin: [null, ''] } });
+        const { searchParams } = new URL(req.url);
+        const batch = searchParams.get('batch');
+
+        const query: any = { schoolName: { $exists: true, $nin: [null, ''] } };
+        if (batch) {
+            const escapedBatch = batch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            query.courses = { $regex: new RegExp(`^${escapedBatch}$`, 'i') };
+        }
+
+        const schools = await BatchStudent.distinct('schoolName', query);
         const sorted = (schools as string[])
             .filter(Boolean)
             .sort((a, b) => a.localeCompare(b));

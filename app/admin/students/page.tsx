@@ -27,7 +27,6 @@ export default function AdminStudents() {
     const [search, setSearch] = useState('');
     const [batchFilter, setBatchFilter] = useState('');
     const [schoolFilter, setSchoolFilter] = useState('');
-    const [classFilter, setClassFilter] = useState('');
     const [batches, setBatches] = useState<string[]>([]);
     const [schools, setSchools] = useState<string[]>([]);
 
@@ -69,7 +68,6 @@ export default function AdminStudents() {
             if (search)       params.set('search', search);
             if (batchFilter)  params.set('batch', batchFilter);
             if (schoolFilter) params.set('school', schoolFilter);
-            if (classFilter)  params.set('class', classFilter);
 
             const res = await fetch(`/api/admin/students?${params}`, { cache: 'no-store' });
             if (!res.ok) throw new Error('Failed to fetch');
@@ -82,7 +80,7 @@ export default function AdminStudents() {
         } finally {
             setLoading(false);
         }
-    }, [page, search, batchFilter, schoolFilter, classFilter]);
+    }, [page, search, batchFilter, schoolFilter]);
 
     const fetchBatches = async () => {
         try {
@@ -94,17 +92,27 @@ export default function AdminStudents() {
         } catch { }
     };
 
-    const fetchSchools = async () => {
+    const fetchSchools = useCallback(async (batchName: string) => {
         try {
-            const res = await fetch('/api/admin/students/schools');
+            const params = new URLSearchParams();
+            if (batchName) params.set('batch', batchName);
+            const res = await fetch(`/api/admin/students/schools?${params.toString()}`);
             if (res.ok) {
                 const data = await res.json();
-                setSchools(data.schools || []);
+                const fetchedSchools = data.schools || [];
+                setSchools(fetchedSchools);
+                
+                // Clear the school filter if the newly fetched list doesn't include the currently selected school
+                setSchoolFilter(prev => {
+                    if (prev && !fetchedSchools.includes(prev)) return '';
+                    return prev;
+                });
             }
         } catch { }
-    };
+    }, []);
 
-    useEffect(() => { fetchBatches(); fetchSchools(); }, []);
+    useEffect(() => { fetchBatches(); }, []);
+    useEffect(() => { fetchSchools(batchFilter); }, [batchFilter, fetchSchools]);
     useEffect(() => { fetchStudents(); }, [fetchStudents]);
 
     // Debounced search
@@ -386,7 +394,7 @@ export default function AdminStudents() {
             setRenameSchoolForm({ oldSchool: '', newSchool: '' });
             setSelectedStudents(new Set());
             fetchStudents();
-            fetchSchools();
+            fetchSchools(batchFilter);
         } catch (error: any) {
             toast.error(error.message || 'Rename failed', { id: toastId });
         }
@@ -604,16 +612,6 @@ export default function AdminStudents() {
                     <option value="" className="bg-slate-800 text-white">All Schools</option>
                     {schools.map(s => <option key={s} value={s} className="bg-slate-800 text-white">{s}</option>)}
                 </select>
-                {/* Class filter */}
-                <select
-                    value={classFilter}
-                    onChange={e => { setClassFilter(e.target.value); setPage(1); }}
-                    className="px-4 py-2.5 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-blue-500 w-full sm:w-auto min-w-[140px]"
-                >
-                    <option value="" className="bg-slate-800 text-white">All Classes</option>
-                    <option value="XI" className="bg-slate-800 text-white">Class XI</option>
-                    <option value="XII" className="bg-slate-800 text-white">Class XII</option>
-                </select>
             </div>
 
             {/* Floating Action Bar */}
@@ -706,11 +704,6 @@ export default function AdminStudents() {
                                                     {student.board && (
                                                         <span className="inline-block px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 text-[9px] font-bold border border-emerald-500/20">
                                                             {student.board}
-                                                        </span>
-                                                    )}
-                                                    {student.guestClass && (
-                                                        <span className="inline-block px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 text-[9px] font-bold border border-purple-500/20">
-                                                            Class {student.guestClass}
                                                         </span>
                                                     )}
                                                     {student.schoolName && (

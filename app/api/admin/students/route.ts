@@ -14,7 +14,6 @@ export async function GET(req: NextRequest) {
         const batch = searchParams.get('batch');
         const search = searchParams.get('search');
         const school = searchParams.get('school');
-        const cls = searchParams.get('class');
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '50');
 
@@ -28,11 +27,6 @@ export async function GET(req: NextRequest) {
         if (school) {
             const escapedSchool = school.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             query.schoolName = { $regex: new RegExp(`^${escapedSchool}$`, 'i') };
-        }
-
-        if (cls) {
-            const escapedCls = cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            query.guestClass = { $regex: new RegExp(`^${escapedCls}$`, 'i') };
         }
 
         if (search) {
