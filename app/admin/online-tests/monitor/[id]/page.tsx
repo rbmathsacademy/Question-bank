@@ -1,11 +1,12 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Users, Trophy, Clock, XCircle, RefreshCw, BarChart3, Target, TrendingUp, Award, Percent, RotateCcw, CalendarClock, Eye, ShieldAlert, UserMinus, UserPlus, User, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Users, Trophy, Clock, XCircle, RefreshCw, BarChart3, Target, TrendingUp, Award, Percent, RotateCcw, CalendarClock, Eye, ShieldAlert, UserMinus, UserPlus, User, ChevronDown, ChevronUp, FileDown } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 import SubmissionReviewModal from '../components/SubmissionReviewModal';
+import { openQuestionPaperPrint } from '../components/openQuestionPaperPrint';
 
 interface Analytics {
     totalStudents: number;
@@ -75,6 +76,9 @@ export default function MonitorTestPage() {
     const [excludedStudents, setExcludedStudents] = useState<any[]>([]);
     const [showExcluded, setShowExcluded] = useState(false);
 
+    // Question Paper PDF
+    const [downloadingPDF, setDownloadingPDF] = useState(false);
+
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
@@ -109,6 +113,26 @@ export default function MonitorTestPage() {
             toast.error('Error loading results');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleDownloadQuestionPaper = async () => {
+        if (!testInfo || !userEmail) return;
+        setDownloadingPDF(true);
+        try {
+            const res = await fetch(`/api/admin/online-tests/${testId}`, {
+                headers: { 'X-User-Email': userEmail }
+            });
+            if (!res.ok) {
+                toast.error('Failed to fetch test questions');
+                return;
+            }
+            const fullTest = await res.json();
+            openQuestionPaperPrint(fullTest, testInfo);
+        } catch (err) {
+            toast.error('Failed to generate question paper');
+        } finally {
+            setDownloadingPDF(false);
         }
     };
 
@@ -413,9 +437,24 @@ export default function MonitorTestPage() {
                                     <span>🎯 {testInfo.passingPercentage}%</span>
                                 </div>
                             </div>
-                            <button onClick={fetchResults} className="px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg flex items-center gap-2 transition-colors text-xs sm:text-sm font-medium self-start">
-                                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
-                            </button>
+                            <div className="flex items-center gap-2 self-start">
+                                <button
+                                    onClick={handleDownloadQuestionPaper}
+                                    disabled={downloadingPDF || !testInfo}
+                                    className="px-3 py-1.5 sm:px-4 sm:py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg flex items-center gap-2 transition-colors text-xs sm:text-sm font-medium"
+                                    title="Download Question Paper PDF"
+                                >
+                                    {downloadingPDF ? (
+                                        <RefreshCw className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <FileDown className="h-4 w-4" />
+                                    )}
+                                    <span className="hidden sm:inline">{downloadingPDF ? 'Generating...' : 'Question Paper'}</span>
+                                </button>
+                                <button onClick={fetchResults} className="px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg flex items-center gap-2 transition-colors text-xs sm:text-sm font-medium">
+                                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
