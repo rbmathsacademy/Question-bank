@@ -54,14 +54,15 @@ export async function GET(req: NextRequest) {
             .lean();
 
         // Filter out tests where this student is excluded, and handle specific students deployment
+        // Use cleanPhone (digits-only) for all comparisons to handle format differences (e.g. +91 prefix)
         const tests = allTests.filter((t: any) => {
-            const excluded: string[] = t.excludedStudents || [];
-            if (excluded.includes(student.phoneNumber)) return false;
+            const excluded: string[] = (t.excludedStudents || []).map((p: string) => p.replace(/\D/g, ''));
+            if (excluded.includes(cleanPhone)) return false;
 
             // If "specific students" are set, check if the student is in that list
             if (t.deployment?.students && t.deployment.students.length > 0) {
-                const specificPhones = t.deployment.students.map((s: any) => s.phoneNumber);
-                if (!specificPhones.includes(student.phoneNumber)) return false;
+                const specificPhones = t.deployment.students.map((s: any) => s.phoneNumber.replace(/\D/g, ''));
+                if (!specificPhones.includes(cleanPhone)) return false;
             }
 
             return true;
