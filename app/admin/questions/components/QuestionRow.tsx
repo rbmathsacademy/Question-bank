@@ -509,6 +509,36 @@ export default function QuestionRow({ index, question, mode, topics = [], subtop
                                 />
                             </div>
                         )}
+
+                        {/* Answer Segment */}
+                        {localQuestion.answer && (
+                            <div className="mt-3 pt-3 border-t border-gray-700">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block mb-1">Answer</span>
+                                <div className="text-emerald-300 text-sm leading-relaxed">
+                                    <Latex>{String(localQuestion.answer)}</Latex>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Hint Segment */}
+                        {localQuestion.hint && (
+                            <div className="mt-3 pt-3 border-t border-gray-700">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 block mb-1">Hint</span>
+                                <div className="text-amber-200 text-sm leading-relaxed">
+                                    <Latex>{String(localQuestion.hint)}</Latex>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Explanation Segment */}
+                        {localQuestion.explanation && (
+                            <div className="mt-3 pt-3 border-t border-gray-700">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-violet-400 block mb-1">Explanation</span>
+                                <div className="text-gray-300 text-sm leading-relaxed">
+                                    <Latex>{String(localQuestion.explanation)}</Latex>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div className="h-full flex items-center justify-center text-gray-400 text-xs italic">

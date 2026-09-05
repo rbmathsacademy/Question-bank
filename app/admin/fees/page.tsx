@@ -689,18 +689,18 @@ function FeesManagementContent() {
 
     const exportHistory = () => {
         if (!historyRecords.length) return;
-        const headers = ['Invoice', 'Student', 'Batch', 'Amount', 'Fees Month', 'Paid On', 'Entered At', 'Mode', 'Receiver', 'Remarks'];
+        const headers = ['Invoice', 'Student', 'Batch', 'Fees Month', 'Paid On', 'Mode', 'Amount', 'Entered At', 'Receiver', 'Remarks'];
         const rows = historyRecords.map(r => {
             const sName = r.isAdhoc ? `${r.adhocStudentName || 'Unknown'} (Ad-hoc)` : (r.studentName || (typeof r.student === 'object' && r.student ? r.student.name : null) || 'Unknown');
             return [
                 r.invoiceNo,
                 sName,
                 r.batch,
-                r.amount,
                 new Date(r.feesMonth).toLocaleDateString('en-IN', { month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }),
                 new Date(r.entryDate).toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' }),
-                r.createdAt ? new Date(r.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : '-',
                 r.paymentMode,
+                r.amount,
+                r.createdAt ? new Date(r.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : '-',
                 r.paymentReceiver || '-',
                 r.remarks || ''
             ].map(v => `"${v}"`).join(',');

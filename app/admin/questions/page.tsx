@@ -393,9 +393,11 @@ export default function QuestionBank() {
         return Array.from(set).filter(Boolean).sort();
     }, [questions, selectedTopics, selectedSubtopics, selectedBatches, serverFilters]);
 
-    // Derived batch names from questions (what batches exist on questions)
+    // Derived batch names from questions (what batches exist on questions), merged with all known batches from API
     const availableBatchNames = useMemo(() => {
         const set = new Set<string>();
+        // Always include all batches from the courses API so the dropdown is always populated
+        availableBatches.forEach(b => { if (b) set.add(b); });
         let filtered = questions;
         const actualTopics = selectedTopics.filter(t => t !== "No Topic");
         if (actualTopics.length > 0) filtered = filtered.filter(q => actualTopics.includes(q.topic));
@@ -411,14 +413,14 @@ export default function QuestionBank() {
         });
         const batchNames = Array.from(set).filter(Boolean).sort();
         return ['Untagged', ...batchNames];
-    }, [questions, selectedTopics, selectedSubtopics, selectedExams]);
+    }, [questions, selectedTopics, selectedSubtopics, selectedExams, availableBatches]);
 
 
 
     // Compute filtered questions based on selected topics and subtopics
     const filteredQuestions = useMemo(() => {
-        // If "No Topic" is selected and no search, return empty
-        if (selectedTopics.includes("No Topic") && !searchQuery && !isGlobalSearching) {
+        // If "No Topic" is selected and no search/batch, return empty
+        if (selectedTopics.includes("No Topic") && !searchQuery && !isGlobalSearching && selectedBatches.length === 0) {
             return [];
         }
         // If global search results are loaded, show all
