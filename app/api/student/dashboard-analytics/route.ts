@@ -39,10 +39,21 @@ export async function GET(req: NextRequest) {
             status: { $in: ['deployed', 'completed'] }
         }).sort({ 'deployment.startTime': -1 }).lean();
 
-        // Filter out tests where this student is excluded
+        // Filter out tests where this student is excluded OR is not in a specific-student deployment
+        const cleanPhone = phoneNumber.replace(/\D/g, '');
         const tests = allTests.filter((t: any) => {
-            const excluded: string[] = t.excludedStudents || [];
-            return !excluded.includes(phoneNumber);
+            // Excluded students check
+            const excluded: string[] = (t.excludedStudents || []).map((p: string) => p.replace(/\D/g, ''));
+            if (excluded.includes(cleanPhone)) return false;
+
+            // If the test was deployed to specific students (not all batch members),
+            // only include it if this student is in that list
+            if (t.deployment?.students && t.deployment.students.length > 0) {
+                const specificPhones = t.deployment.students.map((s: any) => s.phoneNumber.replace(/\D/g, ''));
+                if (!specificPhones.includes(cleanPhone)) return false;
+            }
+
+            return true;
         });
 
         const testIds = tests.map(t => t._id);
