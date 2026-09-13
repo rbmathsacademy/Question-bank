@@ -15,7 +15,7 @@ export async function PUT(
         await dbConnect();
         const { id } = await props.params;
         const body = await req.json();
-        const { name, phoneNumber, courses, guardianPhone, guardianName, email, schoolName, board, collegeName } = body;
+        const { name, phoneNumber, courses, guardianPhone, guardianName, email, schoolName, board, collegeName, modeOfClass } = body;
 
         const updateData: any = {};
         if (name !== undefined) updateData.name = name.trim();
@@ -27,6 +27,7 @@ export async function PUT(
         if (schoolName !== undefined) updateData.schoolName = schoolName?.trim() || null;
         if (board !== undefined) updateData.board = board?.trim() || null;
         if (collegeName !== undefined) updateData.collegeName = collegeName?.trim() || '';
+        if (modeOfClass !== undefined) updateData.modeOfClass = modeOfClass?.trim() || '';
 
         // Check for phone number conflict if updating phone
         if (updateData.phoneNumber) {
@@ -49,6 +50,7 @@ export async function PUT(
             const syncData: any = {};
             if (name !== undefined) syncData.name = name.trim();
             if (collegeName !== undefined) syncData.collegeName = collegeName?.trim() || '';
+            if (modeOfClass !== undefined) syncData.modeOfClass = modeOfClass?.trim() || '';
             
             // Only update fields that exist in the Student schema
             if (Object.keys(syncData).length > 0) {

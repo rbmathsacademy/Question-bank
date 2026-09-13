@@ -41,6 +41,7 @@ export default function AdminStudents() {
     const [showBulkModal, setShowBulkModal] = useState(false);
     const [showRenameBatchModal, setShowRenameBatchModal] = useState(false);
     const [showRenameSchoolModal, setShowRenameSchoolModal] = useState(false);
+    const [showRenameCollegeModal, setShowRenameCollegeModal] = useState(false);
     const [showMarkModeModal, setShowMarkModeModal] = useState(false);
     const [markModeForm, setMarkModeForm] = useState({ mode: '' });
     const [showRecycleBinModal, setShowRecycleBinModal] = useState(false);
@@ -59,11 +60,14 @@ export default function AdminStudents() {
     // Rename school form
     const [renameSchoolForm, setRenameSchoolForm] = useState({ oldSchool: '', newSchool: '' });
 
+    // Rename college form
+    const [renameCollegeForm, setRenameCollegeForm] = useState({ oldCollege: '', newCollege: '' });
+
     // Form state
     const [form, setForm] = useState({
         name: '', phoneNumber: '', courses: [] as string[],
         guardianPhone: '', guardianName: '', email: '',
-        schoolName: '', board: '', collegeName: ''
+        schoolName: '', board: '', collegeName: '', modeOfClass: ''
     });
     const [bulkText, setBulkText] = useState('');
     const [newCourseInput, setNewCourseInput] = useState('');
@@ -158,7 +162,7 @@ export default function AdminStudents() {
     };
 
     const resetForm = () => {
-        setForm({ name: '', phoneNumber: '', courses: [], guardianPhone: '', guardianName: '', email: '', schoolName: '', board: '', collegeName: '' });
+        setForm({ name: '', phoneNumber: '', courses: [], guardianPhone: '', guardianName: '', email: '', schoolName: '', board: '', collegeName: '', modeOfClass: '' });
         setNewCourseInput('');
     };
 
@@ -277,7 +281,8 @@ export default function AdminStudents() {
             email: student.email || '',
             schoolName: student.schoolName || '',
             board: student.board || '',
-            collegeName: student.collegeName || ''
+            collegeName: student.collegeName || '',
+            modeOfClass: student.modeOfClass || ''
         });
         setShowEditModal(true);
     };
@@ -435,6 +440,49 @@ export default function AdminStudents() {
         }
     };
 
+    // Derive the college name common to selected students (for rename college modal)
+    const getCommonCollege = (): string => {
+        const selected = students.filter(s => selectedStudents.has(s._id));
+        if (selected.length === 0) return '';
+        const clgs = Array.from(new Set(selected.map(s => s.collegeName || '').filter(Boolean)));
+        return clgs.length === 1 ? clgs[0] : '';
+    };
+
+    const handleRenameCollege = async () => {
+        if (!renameCollegeForm.oldCollege || !renameCollegeForm.newCollege.trim()) {
+            toast.error('Please enter a new college name');
+            return;
+        }
+        if (renameCollegeForm.oldCollege.trim() === renameCollegeForm.newCollege.trim()) {
+            toast.error('Old and new college names are the same');
+            return;
+        }
+        const toastId = toast.loading('Renaming college...');
+        try {
+            const userStr = localStorage.getItem('user');
+            const email = userStr ? JSON.parse(userStr).email : '';
+            const res = await fetch('/api/admin/students/rename-college', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-User-Email': email },
+                body: JSON.stringify({
+                    studentIds: Array.from(selectedStudents),
+                    oldCollege: renameCollegeForm.oldCollege,
+                    newCollege: renameCollegeForm.newCollege.trim()
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+            toast.success(data.message, { id: toastId });
+            setShowRenameCollegeModal(false);
+            setRenameCollegeForm({ oldCollege: '', newCollege: '' });
+            setSelectedStudents(new Set());
+            fetchStudents();
+            fetchColleges(batchFilter, schoolFilter, modeFilter);
+        } catch (error: any) {
+            toast.error(error.message || 'Rename failed', { id: toastId });
+        }
+    };
+
     const handleMarkMode = async () => {
         if (!markModeForm.mode) {
             toast.error('Please select a mode');
@@ -558,15 +606,29 @@ export default function AdminStudents() {
                     </select>
                 </div>
             </div>
-            {/* College */}
-            <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">College Name</label>
-                <input
-                    type="text" value={form.collegeName}
-                    onChange={e => setForm({ ...form, collegeName: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50"
-                    placeholder="College name (if applicable)"
-                />
+            {/* College & Mode */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">College Name</label>
+                    <input
+                        type="text" value={form.collegeName}
+                        onChange={e => setForm({ ...form, collegeName: e.target.value })}
+                        className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50"
+                        placeholder="College name"
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Mode of Class</label>
+                    <select
+                        value={form.modeOfClass}
+                        onChange={e => setForm({ ...form, modeOfClass: e.target.value })}
+                        className="w-full px-4 py-2.5 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-blue-500"
+                    >
+                        <option value="" className="bg-slate-800 text-white">Unassigned</option>
+                        <option value="online" className="bg-slate-800 text-white">Online</option>
+                        <option value="offline" className="bg-slate-800 text-white">Offline</option>
+                    </select>
+                </div>
             </div>
             {/* Guardian Info */}
             <div className="grid grid-cols-2 gap-3">
@@ -750,6 +812,15 @@ export default function AdminStudents() {
                             className="px-3 py-2 rounded-xl bg-teal-600/20 border border-teal-500/30 text-teal-300 font-bold text-xs hover:bg-teal-600/30 transition-all flex items-center gap-2">
                             <RefreshCw className="h-3 w-3" />
                             Rename School
+                        </button>
+                        <button onClick={() => {
+                            const common = getCommonCollege();
+                            setRenameCollegeForm({ oldCollege: common, newCollege: '' });
+                            setShowRenameCollegeModal(true);
+                        }}
+                            className="px-3 py-2 rounded-xl bg-fuchsia-600/20 border border-fuchsia-500/30 text-fuchsia-300 font-bold text-xs hover:bg-fuchsia-600/30 transition-all flex items-center gap-2">
+                            <RefreshCw className="h-3 w-3" />
+                            Rename College
                         </button>
                         <button onClick={handleBulkDelete}
                             className="px-3 py-2 rounded-xl bg-red-600/20 border border-red-500/30 text-red-300 font-bold text-xs hover:bg-red-600/30 transition-all flex items-center gap-2">
@@ -1086,6 +1157,56 @@ export default function AdminStudents() {
                                 <button onClick={handleRenameSchool}
                                     className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-cyan-600 text-white font-bold text-sm hover:from-teal-500 hover:to-cyan-500 shadow-lg shadow-teal-500/20">
                                     Rename School
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Rename College Modal */}
+            {showRenameCollegeModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setShowRenameCollegeModal(false)}>
+                    <div className="bg-[#0f172a] border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between p-5 border-b border-white/10">
+                            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                                <RefreshCw className="h-5 w-5 text-fuchsia-400" /> Rename College
+                            </h2>
+                            <button onClick={() => setShowRenameCollegeModal(false)} className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400"><X className="h-5 w-5" /></button>
+                        </div>
+                        <div className="p-5 space-y-4">
+                            <div className="p-3 rounded-xl bg-fuchsia-500/10 border border-fuchsia-500/20 text-xs text-fuchsia-300">
+                                <p className="font-bold mb-1">This will rename the college for {selectedStudents.size} selected student(s).</p>
+                                <p className="text-slate-400">The college name will be updated in each student's profile automatically.</p>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Current College *</label>
+                                <select
+                                    value={renameCollegeForm.oldCollege}
+                                    onChange={e => setRenameCollegeForm({ ...renameCollegeForm, oldCollege: e.target.value })}
+                                    className="w-full px-4 py-2.5 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-fuchsia-500"
+                                >
+                                    <option value="" className="bg-slate-800 text-white">Select college to rename...</option>
+                                    {colleges.map(c => (
+                                        <option key={c} value={c} className="bg-slate-800 text-white">{c}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">New College Name *</label>
+                                <input
+                                    type="text" value={renameCollegeForm.newCollege}
+                                    onChange={e => setRenameCollegeForm({ ...renameCollegeForm, newCollege: e.target.value })}
+                                    className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-fuchsia-500 focus:ring-1 focus:ring-fuchsia-500/50"
+                                    placeholder="Enter new college name"
+                                />
+                            </div>
+                            <div className="flex gap-3 mt-6">
+                                <button onClick={() => setShowRenameCollegeModal(false)}
+                                    className="flex-1 py-2.5 rounded-xl border border-white/10 text-slate-400 font-bold text-sm hover:bg-white/5">Cancel</button>
+                                <button onClick={handleRenameCollege}
+                                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-pink-600 text-white font-bold text-sm hover:from-fuchsia-500 hover:to-pink-500 shadow-lg shadow-fuchsia-500/20">
+                                    Rename College
                                 </button>
                             </div>
                         </div>
