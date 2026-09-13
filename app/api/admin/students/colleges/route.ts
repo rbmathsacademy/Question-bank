@@ -4,38 +4,37 @@ import BatchStudent from '@/models/BatchStudent';
 
 export const dynamic = 'force-dynamic';
 
-// GET - Return distinct school names for filter dropdowns
 export async function GET(req: NextRequest) {
     try {
         await dbConnect();
         const { searchParams } = new URL(req.url);
         const batch = searchParams.get('batch');
-        const college = searchParams.get('college');
+        const school = searchParams.get('school');
         const mode = searchParams.get('mode');
 
-        const query: any = { schoolName: { $exists: true, $nin: [null, ''] } };
+        const query: any = { collegeName: { $exists: true, $nin: [null, ''] } };
         
         if (batch) {
             const escapedBatch = batch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             query.courses = { $regex: new RegExp(`^${escapedBatch}$`, 'i') };
         }
         
-        if (college) {
-            const escapedCollege = college.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            query.collegeName = { $regex: new RegExp(`^${escapedCollege}$`, 'i') };
+        if (school) {
+            const escapedSchool = school.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            query.schoolName = { $regex: new RegExp(`^${escapedSchool}$`, 'i') };
         }
 
         if (mode) {
             query.modeOfClass = mode;
         }
 
-        const schools = await BatchStudent.distinct('schoolName', query);
-        const sorted = (schools as string[])
+        const colleges = await BatchStudent.distinct('collegeName', query);
+        const sorted = (colleges as string[])
             .filter(Boolean)
             .sort((a, b) => a.localeCompare(b));
-        return NextResponse.json({ schools: sorted });
+        return NextResponse.json({ colleges: sorted });
     } catch (error: any) {
-        console.error('Failed to fetch schools:', error);
-        return NextResponse.json({ error: 'Failed to fetch schools' }, { status: 500 });
+        console.error('Failed to fetch colleges:', error);
+        return NextResponse.json({ error: 'Failed to fetch colleges' }, { status: 500 });
     }
 }

@@ -80,7 +80,16 @@ const StudentSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Question',
         default: []
-    }]
+    }],
+    collegeName: {
+        type: String,
+        trim: true,
+    },
+    modeOfClass: {
+        type: String,
+        enum: ['online', 'offline', ''],
+        default: '',
+    }
 }, { timestamps: true });
 
 // Force recompilation of the model in dev mode if it exists, to ensure schema updates are applied

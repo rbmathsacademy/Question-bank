@@ -11,6 +11,7 @@ interface StudentProfile {
     phoneNumber: string;
     schoolName: string | null;
     board: string | null;
+    collegeName: string | null;
 }
 
 interface StudentProfileContextType {
@@ -18,7 +19,7 @@ interface StudentProfileContextType {
     loading: boolean;
     error: boolean;
     isFreeBatchOnly: boolean;
-    updateProfile: (schoolName: string, board: string) => void;
+    updateProfile: (schoolName: string, board: string, collegeName?: string) => void;
 }
 
 const StudentProfileContext = createContext<StudentProfileContextType>({
@@ -57,9 +58,9 @@ export function StudentProfileProvider({ children }: { children: ReactNode }) {
         fetchProfile();
     }, []);
 
-    const updateProfile = (schoolName: string, board: string) => {
+    const updateProfile = (schoolName: string, board: string, collegeName?: string) => {
         if (profile) {
-            setProfile({ ...profile, schoolName, board });
+            setProfile({ ...profile, schoolName, board, collegeName: collegeName ?? profile.collegeName });
         }
     };
 

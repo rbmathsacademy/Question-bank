@@ -49,7 +49,8 @@ export async function GET(req: NextRequest) {
                         courses: student.courses || [],
                         phoneNumber: student.phoneNumber,
                         schoolName: student.schoolName || null,
-                        board: student.board || null
+                        board: student.board || null,
+                        collegeName: student.collegeName || null
                     });
                 }
             }
@@ -67,7 +68,8 @@ export async function GET(req: NextRequest) {
                     courses: student.courses || [],
                     phoneNumber: student.phoneNumber,
                     schoolName: student.schoolName || null,
-                    board: student.board || null
+                    board: student.board || null,
+                    collegeName: student.collegeName || null
                 });
             }
         }

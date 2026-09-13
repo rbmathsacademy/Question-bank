@@ -14,6 +14,8 @@ export async function GET(req: NextRequest) {
         const batch = searchParams.get('batch');
         const search = searchParams.get('search');
         const school = searchParams.get('school');
+        const college = searchParams.get('college');
+        const mode = searchParams.get('mode');
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '50');
 
@@ -29,6 +31,15 @@ export async function GET(req: NextRequest) {
             query.schoolName = { $regex: new RegExp(`^${escapedSchool}$`, 'i') };
         }
 
+        if (college) {
+            const escapedCollege = college.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            query.collegeName = { $regex: new RegExp(`^${escapedCollege}$`, 'i') };
+        }
+
+        if (mode) {
+            query.modeOfClass = mode;
+        }
+
         if (search) {
             const fuzzySearch = search.trim().split(/\s+/).join('.*');
             const searchRegex = { $regex: fuzzySearch, $options: 'i' };
@@ -40,7 +51,7 @@ export async function GET(req: NextRequest) {
 
         const [students, total] = await Promise.all([
             BatchStudent.find(query)
-                .select('name phoneNumber courses guardianPhone guardianName email schoolName board guestClass createdAt')
+                .select('name phoneNumber courses guardianPhone guardianName email schoolName board guestClass collegeName modeOfClass createdAt')
                 .lean()
                 .sort({ name: 1 })
                 .skip((page - 1) * limit)

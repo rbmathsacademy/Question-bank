@@ -25,7 +25,9 @@ const BatchStudentSchema = new mongoose.Schema({
         type: Map,
         of: Date,
         default: {}
-    }
+    },
+    collegeName: { type: String, trim: true },
+    modeOfClass: { type: String, enum: ['online', 'offline', ''], default: '' }
 }, { timestamps: true });
 
 // Prevent overwrite

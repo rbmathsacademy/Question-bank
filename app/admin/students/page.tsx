@@ -13,6 +13,8 @@ interface Student {
     guardianName?: string;
     email?: string;
     schoolName?: string;
+    collegeName?: string;
+    modeOfClass?: string;
     board?: string;
     guestClass?: string;
     createdAt: string;
@@ -27,8 +29,11 @@ export default function AdminStudents() {
     const [search, setSearch] = useState('');
     const [batchFilter, setBatchFilter] = useState('');
     const [schoolFilter, setSchoolFilter] = useState('');
+    const [collegeFilter, setCollegeFilter] = useState('');
+    const [modeFilter, setModeFilter] = useState('');
     const [batches, setBatches] = useState<string[]>([]);
     const [schools, setSchools] = useState<string[]>([]);
+    const [colleges, setColleges] = useState<string[]>([]);
 
     // Modal states
     const [showAddModal, setShowAddModal] = useState(false);
@@ -36,6 +41,8 @@ export default function AdminStudents() {
     const [showBulkModal, setShowBulkModal] = useState(false);
     const [showRenameBatchModal, setShowRenameBatchModal] = useState(false);
     const [showRenameSchoolModal, setShowRenameSchoolModal] = useState(false);
+    const [showMarkModeModal, setShowMarkModeModal] = useState(false);
+    const [markModeForm, setMarkModeForm] = useState({ mode: '' });
     const [showRecycleBinModal, setShowRecycleBinModal] = useState(false);
     const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
@@ -68,6 +75,8 @@ export default function AdminStudents() {
             if (search)       params.set('search', search);
             if (batchFilter)  params.set('batch', batchFilter);
             if (schoolFilter) params.set('school', schoolFilter);
+            if (collegeFilter) params.set('college', collegeFilter);
+            if (modeFilter)   params.set('mode', modeFilter);
 
             const res = await fetch(`/api/admin/students?${params}`, { cache: 'no-store' });
             if (!res.ok) throw new Error('Failed to fetch');
@@ -80,7 +89,7 @@ export default function AdminStudents() {
         } finally {
             setLoading(false);
         }
-    }, [page, search, batchFilter, schoolFilter]);
+    }, [page, search, batchFilter, schoolFilter, collegeFilter, modeFilter]);
 
     const fetchBatches = async () => {
         try {
@@ -92,10 +101,13 @@ export default function AdminStudents() {
         } catch { }
     };
 
-    const fetchSchools = useCallback(async (batchName: string) => {
+    const fetchSchools = useCallback(async (batchName: string, collegeName: string, mode: string) => {
         try {
             const params = new URLSearchParams();
             if (batchName) params.set('batch', batchName);
+            if (collegeName) params.set('college', collegeName);
+            if (mode) params.set('mode', mode);
+            
             const res = await fetch(`/api/admin/students/schools?${params.toString()}`);
             if (res.ok) {
                 const data = await res.json();
@@ -111,8 +123,30 @@ export default function AdminStudents() {
         } catch { }
     }, []);
 
+    const fetchColleges = useCallback(async (batchName: string, schoolName: string, mode: string) => {
+        try {
+            const params = new URLSearchParams();
+            if (batchName) params.set('batch', batchName);
+            if (schoolName) params.set('school', schoolName);
+            if (mode) params.set('mode', mode);
+            
+            const res = await fetch(`/api/admin/students/colleges?${params.toString()}`);
+            if (res.ok) {
+                const data = await res.json();
+                const fetchedColleges = data.colleges || [];
+                setColleges(fetchedColleges);
+                
+                setCollegeFilter(prev => {
+                    if (prev && !fetchedColleges.includes(prev)) return '';
+                    return prev;
+                });
+            }
+        } catch { }
+    }, []);
+
     useEffect(() => { fetchBatches(); }, []);
-    useEffect(() => { fetchSchools(batchFilter); }, [batchFilter, fetchSchools]);
+    useEffect(() => { fetchSchools(batchFilter, collegeFilter, modeFilter); }, [batchFilter, collegeFilter, modeFilter, fetchSchools]);
+    useEffect(() => { fetchColleges(batchFilter, schoolFilter, modeFilter); }, [batchFilter, schoolFilter, modeFilter, fetchColleges]);
     useEffect(() => { fetchStudents(); }, [fetchStudents]);
 
     // Debounced search
@@ -394,9 +428,36 @@ export default function AdminStudents() {
             setRenameSchoolForm({ oldSchool: '', newSchool: '' });
             setSelectedStudents(new Set());
             fetchStudents();
-            fetchSchools(batchFilter);
+            fetchSchools(batchFilter, collegeFilter, modeFilter);
         } catch (error: any) {
             toast.error(error.message || 'Rename failed', { id: toastId });
+        }
+    };
+
+    const handleMarkMode = async () => {
+        if (!markModeForm.mode) {
+            toast.error('Please select a mode');
+            return;
+        }
+        const toastId = toast.loading('Marking mode of class...');
+        try {
+            const res = await fetch('/api/admin/students/mark-mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    studentIds: Array.from(selectedStudents),
+                    mode: markModeForm.mode === 'none' ? '' : markModeForm.mode
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+            toast.success(data.message, { id: toastId });
+            setShowMarkModeModal(false);
+            setMarkModeForm({ mode: '' });
+            setSelectedStudents(new Set());
+            fetchStudents();
+        } catch (error: any) {
+            toast.error(error.message || 'Mark mode failed', { id: toastId });
         }
     };
 
@@ -612,6 +673,39 @@ export default function AdminStudents() {
                     <option value="" className="bg-slate-800 text-white">All Schools</option>
                     {schools.map(s => <option key={s} value={s} className="bg-slate-800 text-white">{s}</option>)}
                 </select>
+                {/* College filter */}
+                <select
+                    value={collegeFilter}
+                    onChange={e => {
+                        const selected = e.target.value;
+                        setCollegeFilter(selected);
+                        setPage(1);
+                        if (selected) {
+                            const matching = students.filter(s => s.collegeName === selected).map(s => s._id);
+                            setSelectedStudents(new Set(matching));
+                        } else {
+                            setSelectedStudents(new Set());
+                        }
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-blue-500 w-full sm:w-auto min-w-[180px]"
+                >
+                    <option value="" className="bg-slate-800 text-white">All Colleges</option>
+                    {colleges.map(c => <option key={c} value={c} className="bg-slate-800 text-white">{c}</option>)}
+                </select>
+                {/* Mode filter */}
+                <select
+                    value={modeFilter}
+                    onChange={e => {
+                        setModeFilter(e.target.value);
+                        setPage(1);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-blue-500 w-full sm:w-auto min-w-[140px]"
+                >
+                    <option value="" className="bg-slate-800 text-white">All Modes</option>
+                    <option value="online" className="bg-slate-800 text-white">Online</option>
+                    <option value="offline" className="bg-slate-800 text-white">Offline</option>
+                    <option value="none" className="bg-slate-800 text-white">Unassigned</option>
+                </select>
             </div>
 
             {/* Floating Action Bar */}
@@ -621,6 +715,14 @@ export default function AdminStudents() {
                         {selectedStudents.size} student(s) selected
                     </p>
                     <div className="flex gap-2 flex-wrap">
+                        <button onClick={() => {
+                            setMarkModeForm({ mode: '' });
+                            setShowMarkModeModal(true);
+                        }}
+                            className="px-3 py-2 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 font-bold text-xs hover:bg-indigo-600/30 transition-all flex items-center gap-2">
+                            <RefreshCw className="h-3 w-3" />
+                            Mark Mode
+                        </button>
                         <button onClick={() => {
                             setRenameBatchForm({ oldBatch: '', newBatch: '' });
                             setShowRenameBatchModal(true);
@@ -709,6 +811,16 @@ export default function AdminStudents() {
                                                     {student.schoolName && (
                                                         <span className="inline-block px-1.5 py-0.5 rounded bg-teal-500/15 text-teal-400 text-[9px] font-bold border border-teal-500/20 max-w-[140px] truncate" title={student.schoolName}>
                                                             {student.schoolName}
+                                                        </span>
+                                                    )}
+                                                    {student.collegeName && (
+                                                        <span className="inline-block px-1.5 py-0.5 rounded bg-fuchsia-500/15 text-fuchsia-400 text-[9px] font-bold border border-fuchsia-500/20 max-w-[140px] truncate" title={student.collegeName}>
+                                                            {student.collegeName}
+                                                        </span>
+                                                    )}
+                                                    {student.modeOfClass && (
+                                                        <span className="inline-block px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-400 text-[9px] font-bold border border-orange-500/20 max-w-[140px] truncate">
+                                                            {student.modeOfClass.toUpperCase()}
                                                         </span>
                                                     )}
                                                 </div>
@@ -1047,6 +1159,46 @@ export default function AdminStudents() {
                                     ))}
                                 </div>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Mark Mode Modal */}
+            {showMarkModeModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setShowMarkModeModal(false)}>
+                    <div className="bg-[#0f172a] border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between p-5 border-b border-white/10">
+                            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                                <RefreshCw className="h-5 w-5 text-indigo-400" /> Mark Mode of Class
+                            </h2>
+                            <button onClick={() => setShowMarkModeModal(false)} className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400"><X className="h-5 w-5" /></button>
+                        </div>
+                        <div className="p-5 space-y-4">
+                            <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-300">
+                                <p className="font-bold mb-1">This will update the mode of class for {selectedStudents.size} selected student(s).</p>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Mode of Class *</label>
+                                <select
+                                    value={markModeForm.mode}
+                                    onChange={e => setMarkModeForm({ ...markModeForm, mode: e.target.value })}
+                                    className="w-full px-4 py-2.5 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-indigo-500"
+                                >
+                                    <option value="" className="bg-slate-800 text-white">Select mode...</option>
+                                    <option value="online" className="bg-slate-800 text-white">Online</option>
+                                    <option value="offline" className="bg-slate-800 text-white">Offline</option>
+                                    <option value="none" className="bg-slate-800 text-white">Unassigned (Clear)</option>
+                                </select>
+                            </div>
+                            <div className="flex gap-3 mt-6">
+                                <button onClick={() => setShowMarkModeModal(false)}
+                                    className="flex-1 py-2.5 rounded-xl border border-white/10 text-slate-400 font-bold text-sm hover:bg-white/5">Cancel</button>
+                                <button onClick={handleMarkMode}
+                                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold text-sm hover:from-indigo-500 hover:to-blue-500 shadow-lg shadow-indigo-500/20">
+                                    Update Mode
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

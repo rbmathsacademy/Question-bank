@@ -4,13 +4,23 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { StudentProfileProvider, useStudentProfile } from './StudentProfileContext';
 import SchoolBoardModal from './SchoolBoardModal';
+import CollegeNameModal from './CollegeNameModal';
 
 import SurveyPopupModal from './components/SurveyPopupModal';
 import NotificationPopupModal from './components/NotificationPopupModal';
 
-// Helper: check if student belongs to Class XI or Class XII batch
-function isClassXIorXII(courses: string[]): boolean {
-    return courses.some(c => /class\s*x(i|ii)\b/i.test(c));
+// Helper: check if student belongs to a school batch (contains "class")
+function isSchoolBatch(courses: string[]): boolean {
+    return courses.some(c => /class/i.test(c));
+}
+
+// Helper: check if student belongs to target college batches
+function isTargetCollegeBatch(courses: string[]): boolean {
+    const keywords = ['sem', 'major', 'minor', 'bca', 'engg', 'engineering'];
+    return courses.some(c => {
+        const lowerC = c.toLowerCase();
+        return keywords.some(kw => lowerC.includes(kw));
+    });
 }
 
 function SurveyGate({ children }: { children: React.ReactNode }) {
@@ -102,7 +112,7 @@ function SchoolBoardGate({ children }: { children: React.ReactNode }) {
 
     // Determine if we need to show the modal
     const needsSchoolBoard = !loading && profile && profile._id !== 'GUEST'
-        && isClassXIorXII(profile.courses || [])
+        && isSchoolBatch(profile.courses || [])
         && (!profile.schoolName || !profile.board);
 
     const handleComplete = (schoolName: string, board: string) => {
@@ -131,6 +141,32 @@ function SchoolBoardModalWrapper() {
     );
 }
 
+function CollegeNameGate({ children }: { children: React.ReactNode }) {
+    const { profile, loading } = useStudentProfile();
+
+    const needsCollegeName = !loading && profile && profile._id !== 'GUEST'
+        && isTargetCollegeBatch(profile.courses || [])
+        && !profile.collegeName;
+
+    return (
+        <>
+            {needsCollegeName && <CollegeNameModalWrapper />}
+            {children}
+        </>
+    );
+}
+
+function CollegeNameModalWrapper() {
+    const { updateProfile, profile } = useStudentProfile();
+    return (
+        <CollegeNameModal
+            onComplete={(collegeName) => {
+                updateProfile(profile?.schoolName || '', profile?.board || '', collegeName);
+            }}
+        />
+    );
+}
+
 export default function StudentLayout({
     children,
 }: {
@@ -149,6 +185,7 @@ export default function StudentLayout({
             <StudentProfileProvider>
                 <div className="flex-1 w-full">
                     {isLoginPage ? children : (
+                        <CollegeNameGate>
                         <SchoolBoardGate>
                             <SurveyGate>
                                 <NotificationGate>
@@ -156,6 +193,7 @@ export default function StudentLayout({
                                 </NotificationGate>
                             </SurveyGate>
                         </SchoolBoardGate>
+                        </CollegeNameGate>
                     )}
                 </div>
             </StudentProfileProvider>
