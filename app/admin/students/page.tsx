@@ -63,7 +63,7 @@ export default function AdminStudents() {
     const [form, setForm] = useState({
         name: '', phoneNumber: '', courses: [] as string[],
         guardianPhone: '', guardianName: '', email: '',
-        schoolName: '', board: ''
+        schoolName: '', board: '', collegeName: ''
     });
     const [bulkText, setBulkText] = useState('');
     const [newCourseInput, setNewCourseInput] = useState('');
@@ -158,7 +158,7 @@ export default function AdminStudents() {
     };
 
     const resetForm = () => {
-        setForm({ name: '', phoneNumber: '', courses: [], guardianPhone: '', guardianName: '', email: '', schoolName: '', board: '' });
+        setForm({ name: '', phoneNumber: '', courses: [], guardianPhone: '', guardianName: '', email: '', schoolName: '', board: '', collegeName: '' });
         setNewCourseInput('');
     };
 
@@ -276,7 +276,8 @@ export default function AdminStudents() {
             guardianName: student.guardianName || '',
             email: student.email || '',
             schoolName: student.schoolName || '',
-            board: student.board || ''
+            board: student.board || '',
+            collegeName: student.collegeName || ''
         });
         setShowEditModal(true);
     };
@@ -556,6 +557,16 @@ export default function AdminStudents() {
                         <option value="WBCHSE" className="bg-slate-800 text-white">WBCHSE</option>
                     </select>
                 </div>
+            </div>
+            {/* College */}
+            <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">College Name</label>
+                <input
+                    type="text" value={form.collegeName}
+                    onChange={e => setForm({ ...form, collegeName: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50"
+                    placeholder="College name (if applicable)"
+                />
             </div>
             {/* Guardian Info */}
             <div className="grid grid-cols-2 gap-3">

@@ -15,7 +15,7 @@ export async function PUT(
         await dbConnect();
         const { id } = await props.params;
         const body = await req.json();
-        const { name, phoneNumber, courses, guardianPhone, guardianName, email, schoolName, board } = body;
+        const { name, phoneNumber, courses, guardianPhone, guardianName, email, schoolName, board, collegeName } = body;
 
         const updateData: any = {};
         if (name !== undefined) updateData.name = name.trim();
@@ -26,6 +26,7 @@ export async function PUT(
         if (email !== undefined) updateData.email = email?.trim() || null;
         if (schoolName !== undefined) updateData.schoolName = schoolName?.trim() || null;
         if (board !== undefined) updateData.board = board?.trim() || null;
+        if (collegeName !== undefined) updateData.collegeName = collegeName?.trim() || '';
 
         // Check for phone number conflict if updating phone
         if (updateData.phoneNumber) {
@@ -41,6 +42,19 @@ export async function PUT(
         const student = await BatchStudent.findByIdAndUpdate(id, updateData, { new: true });
         if (!student) {
             return NextResponse.json({ error: 'Student not found' }, { status: 404 });
+        }
+
+        // Sync with Student login model if exists
+        if (student.loginId) {
+            const syncData: any = {};
+            if (name !== undefined) syncData.name = name.trim();
+            if (collegeName !== undefined) syncData.collegeName = collegeName?.trim() || '';
+            
+            // Only update fields that exist in the Student schema
+            if (Object.keys(syncData).length > 0) {
+                const Student = (await import('@/models/Student')).default;
+                await Student.updateMany({ email: student.loginId.toLowerCase() }, syncData);
+            }
         }
 
         return NextResponse.json({ success: true, student });
