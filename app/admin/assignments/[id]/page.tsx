@@ -75,6 +75,20 @@ export default function AssignmentDetailsPage() {
     const [qTopicFilter, setQTopicFilter] = useState('');
     const [qTypeFilter, setQTypeFilter] = useState('');
 
+    // WhatsApp Auto Sender State
+    const [selectedPhones, setSelectedPhones] = useState<string[]>([]);
+    const [whatsappMessage, setWhatsappMessage] = useState('You have missed or have pending assignment submission!');
+
+    const copyForAutoSender = () => {
+        if (selectedPhones.length === 0) return toast.error('No students selected');
+        if (!whatsappMessage) return toast.error('Message cannot be empty');
+        
+        // Format: WHATSAPP_BULK|||Message text|||919876543210,919876543211
+        const dataStr = `WHATSAPP_BULK|||${whatsappMessage}|||${selectedPhones.join(',')}`;
+        navigator.clipboard.writeText(dataStr);
+        toast.success('Copied! Open WhatsApp Web and press F9');
+    };
+
     useEffect(() => {
         if (params.id) fetchDetails();
     }, [params.id]);
@@ -605,11 +619,43 @@ export default function AssignmentDetailsPage() {
                     </div>
                 </div>
 
+                {(submissionFilter === 'PENDING' || submissionFilter === 'MISSED') && filteredStudents.length > 0 && (
+                    <div className="bg-slate-900/60 border-b border-white/5 px-4 sm:px-6 py-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2">
+                                📱 WhatsApp Auto-Sender
+                            </h3>
+                            <button
+                                onClick={() => {
+                                    if (selectedPhones.length === filteredStudents.length) setSelectedPhones([]);
+                                    else setSelectedPhones(filteredStudents.map((s: any) => s.student.phoneNumber));
+                                }}
+                                className="text-xs text-blue-400 hover:text-blue-300 font-medium bg-blue-500/10 px-2 py-1 rounded transition-colors"
+                            >
+                                {selectedPhones.length === filteredStudents.length ? 'Deselect All' : 'Select All'}
+                            </button>
+                        </div>
+                        <input
+                            type="text" 
+                            placeholder="WhatsApp Message..." 
+                            value={whatsappMessage} 
+                            onChange={e => setWhatsappMessage(e.target.value)}
+                            className="w-full px-4 py-2 mb-3 rounded-xl bg-black/30 border border-white/10 text-sm text-white focus:outline-none focus:border-blue-500"
+                        />
+                        <button onClick={copyForAutoSender} disabled={selectedPhones.length === 0} className="w-full px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+                            Copy for WhatsApp Auto-Sender ({selectedPhones.length})
+                        </button>
+                    </div>
+                )}
+
                 {/* Desktop Table */}
                 <div className="hidden sm:block overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-black/20 text-gray-400 text-sm uppercase">
+                                {(submissionFilter === 'PENDING' || submissionFilter === 'MISSED') && (
+                                    <th className="p-4 font-medium w-10"></th>
+                                )}
                                 <th className="p-4 font-medium">Student</th>
                                 <th className="p-4 font-medium">Status</th>
                                 <th className="p-4 font-medium">Submitted At</th>
@@ -620,13 +666,28 @@ export default function AssignmentDetailsPage() {
                         <tbody className="divide-y divide-white/5">
                             {filteredStudents.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="p-12 text-center text-gray-500">
+                                    <td colSpan={6} className="p-12 text-center text-gray-500">
                                         {students.length === 0 ? 'No students in this batch.' : 'No students match the current filters.'}
                                     </td>
                                 </tr>
                             ) : (
-                                filteredStudents.map(student => (
-                                    <tr key={student.student._id} className="hover:bg-white/5 transition-colors">
+                                filteredStudents.map(student => {
+                                    const isSelected = selectedPhones.includes(student.student.phoneNumber);
+                                    return (
+                                    <tr key={student.student._id} className={`hover:bg-white/5 transition-colors ${isSelected ? 'bg-blue-500/10' : ''}`}>
+                                        {(submissionFilter === 'PENDING' || submissionFilter === 'MISSED') && (
+                                            <td className="p-4">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isSelected}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) setSelectedPhones(prev => [...prev, student.student.phoneNumber]);
+                                                        else setSelectedPhones(prev => prev.filter(p => p !== student.student.phoneNumber));
+                                                    }}
+                                                    className="rounded border-white/20 bg-slate-800 text-blue-500 focus:ring-blue-500/20"
+                                                />
+                                            </td>
+                                        )}
                                         <td className="p-4">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400">
@@ -805,7 +866,7 @@ export default function AssignmentDetailsPage() {
                                             )}
                                         </td>
                                     </tr>
-                                ))
+                                )})}
                             )}
                         </tbody>
                     </table>
@@ -816,10 +877,23 @@ export default function AssignmentDetailsPage() {
                     {filteredStudents.length === 0 ? (
                         <div className="p-8 text-center text-gray-500">{students.length === 0 ? 'No students in this batch.' : 'No students match the current filters.'}</div>
                     ) : (
-                        filteredStudents.map(student => (
-                            <div key={student.student._id} className="p-4 space-y-3">
+                        filteredStudents.map(student => {
+                            const isSelected = selectedPhones.includes(student.student.phoneNumber);
+                            return (
+                            <div key={student.student._id} className={`p-4 space-y-3 ${isSelected ? 'bg-blue-500/5' : ''}`}>
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2.5">
+                                        {(submissionFilter === 'PENDING' || submissionFilter === 'MISSED') && (
+                                            <input
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) setSelectedPhones(prev => [...prev, student.student.phoneNumber]);
+                                                    else setSelectedPhones(prev => prev.filter(p => p !== student.student.phoneNumber));
+                                                }}
+                                                className="rounded border-white/20 bg-slate-800 text-blue-500 focus:ring-blue-500/20 mr-1"
+                                            />
+                                        )}
                                         <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400 flex-shrink-0">
                                             <User className="w-4 h-4" />
                                         </div>
@@ -987,9 +1061,8 @@ export default function AssignmentDetailsPage() {
                                             </button>
                                         </div>
                                     )}
-                                </div>
                             </div>
-                        ))
+                        )})}
                     )}
                 </div>
             </div>

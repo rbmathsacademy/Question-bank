@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
@@ -78,6 +78,20 @@ export default function MonitorTestPage() {
 
     // Question Paper PDF
     const [downloadingPDF, setDownloadingPDF] = useState(false);
+
+    // Auto-Sender states for missed students
+    const [selectedMissedPhones, setSelectedMissedPhones] = useState<string[]>([]);
+    const [whatsappMessageMissed, setWhatsappMessageMissed] = useState('You have missed your test!');
+
+    const copyForAutoSenderMissed = () => {
+        if (selectedMissedPhones.length === 0) return toast.error('No students selected');
+        if (!whatsappMessageMissed) return toast.error('Message cannot be empty');
+        
+        // Format: WHATSAPP_BULK|||Message text|||919876543210,919876543211
+        const dataStr = `WHATSAPP_BULK|||${whatsappMessageMissed}|||${selectedMissedPhones.join(',')}`;
+        navigator.clipboard.writeText(dataStr);
+        toast.success('Copied! Open WhatsApp Web and press F9');
+    };
 
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
@@ -1244,6 +1258,35 @@ export default function MonitorTestPage() {
                                     </div>
                                 )}
 
+                                {notStarted.length > 0 && (
+                                    <div className="bg-slate-900/60 border border-white/10 rounded-xl px-4 py-4 mb-4 mt-4">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2">
+                                                📱 WhatsApp Auto-Sender (Missed Students)
+                                            </h3>
+                                            <button
+                                                onClick={() => {
+                                                    if (selectedMissedPhones.length === notStarted.length) setSelectedMissedPhones([]);
+                                                    else setSelectedMissedPhones(notStarted.map((s: any) => s.phone));
+                                                }}
+                                                className="text-xs text-blue-400 hover:text-blue-300 font-medium bg-blue-500/10 px-2 py-1 rounded transition-colors"
+                                            >
+                                                {selectedMissedPhones.length === notStarted.length ? 'Deselect All' : 'Select All'}
+                                            </button>
+                                        </div>
+                                        <input
+                                            type="text" 
+                                            placeholder="WhatsApp Message..." 
+                                            value={whatsappMessageMissed} 
+                                            onChange={e => setWhatsappMessageMissed(e.target.value)}
+                                            className="w-full px-4 py-2 mb-3 rounded-xl bg-slate-800 border border-white/10 text-sm text-white focus:outline-none focus:border-blue-500"
+                                        />
+                                        <button onClick={copyForAutoSenderMissed} disabled={selectedMissedPhones.length === 0} className="w-full px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+                                            Copy for WhatsApp Auto-Sender ({selectedMissedPhones.length})
+                                        </button>
+                                    </div>
+                                )}
+
                                 <div className="bg-slate-900/60 border border-white/10 rounded-2xl overflow-hidden">
                                     {notStarted.length === 0 ? (
                                         <p className="text-center py-12 text-emerald-400 font-medium">All students have started the test! 🎉</p>
@@ -1254,6 +1297,7 @@ export default function MonitorTestPage() {
                                             <table className="w-full">
                                                 <thead>
                                                     <tr className="text-left text-xs text-slate-400 border-b border-white/10 bg-slate-800/30">
+                                                        <th className="px-4 py-3 font-semibold w-10"></th>
                                                         <th className="px-4 py-3 font-semibold">Student</th>
                                                         <th className="px-4 py-3 font-semibold">Batch</th>
                                                         <th className="px-4 py-3 font-semibold">Status</th>
@@ -1261,8 +1305,21 @@ export default function MonitorTestPage() {
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {notStarted.map(s => (
-                                                        <tr key={s.phone} className="border-b border-white/5 hover:bg-white/5">
+                                                    {notStarted.map(s => {
+                                                        const isSelected = selectedMissedPhones.includes(s.phone);
+                                                        return (
+                                                        <tr key={s.phone} className={`border-b border-white/5 hover:bg-white/5 ${isSelected ? 'bg-blue-500/10' : ''}`}>
+                                                            <td className="px-4 py-3">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isSelected}
+                                                                    onChange={(e) => {
+                                                                        if (e.target.checked) setSelectedMissedPhones(prev => [...prev, s.phone]);
+                                                                        else setSelectedMissedPhones(prev => prev.filter(p => p !== s.phone));
+                                                                    }}
+                                                                    className="rounded border-white/20 bg-slate-800 text-blue-500 focus:ring-blue-500/20"
+                                                                />
+                                                            </td>
                                                             <td className="px-4 py-3">
                                                                 <div className="text-white font-medium text-sm">{s.name}</div>
                                                                 <div className="text-[10px] text-slate-500">{s.phone}</div>
@@ -1298,18 +1355,31 @@ export default function MonitorTestPage() {
                                                                 </div>
                                                             </td>
                                                         </tr>
-                                                    ))}
+                                                    )})}
                                                 </tbody>
                                             </table>
                                         </div>
 
                                         {/* Mobile Card View */}
                                         <div className="sm:hidden divide-y divide-white/5">
-                                            {notStarted.map(s => (
-                                                <div key={s.phone} className="p-3 flex items-center justify-between gap-2">
-                                                    <div className="min-w-0">
-                                                        <p className="text-white font-medium text-sm truncate">{s.name}</p>
-                                                        <p className="text-[10px] text-slate-500">{s.phone}</p>
+                                            {notStarted.map(s => {
+                                                const isSelected = selectedMissedPhones.includes(s.phone);
+                                                return (
+                                                <div key={s.phone} className={`p-3 flex items-center justify-between gap-2 ${isSelected ? 'bg-blue-500/10' : ''}`}>
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSelected}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) setSelectedMissedPhones(prev => [...prev, s.phone]);
+                                                                else setSelectedMissedPhones(prev => prev.filter(p => p !== s.phone));
+                                                            }}
+                                                            className="rounded border-white/20 bg-slate-800 text-blue-500 focus:ring-blue-500/20"
+                                                        />
+                                                        <div>
+                                                            <p className="text-white font-medium text-sm truncate">{s.name}</p>
+                                                            <p className="text-[10px] text-slate-500">{s.phone}</p>
+                                                        </div>
                                                     </div>
                                                     <div className="flex items-center gap-1.5 shrink-0">
                                                         <span className="px-2 py-0.5 rounded-full bg-red-500/15 text-red-300 text-[10px] font-bold">❌</span>

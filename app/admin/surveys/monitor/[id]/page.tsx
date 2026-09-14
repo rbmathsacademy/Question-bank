@@ -30,6 +30,10 @@ export default function SurveyMonitorPage({ params }: { params: Promise<{ id: st
     const [notifEndDate, setNotifEndDate] = useState('');
     const [notifSending, setNotifSending] = useState(false);
 
+    // Auto-Sender states
+    const [selectedPendingPhones, setSelectedPendingPhones] = useState<string[]>([]);
+    const [whatsappMessage, setWhatsappMessage] = useState('Hi, please fill out the survey!');
+
     const handleSendNotification = async () => {
         if (!notifHeader || !notifBody || !notifEndDate) return toast.error('Header, body, and End Date are required');
         setNotifSending(true);
@@ -187,6 +191,16 @@ export default function SurveyMonitorPage({ params }: { params: Promise<{ id: st
         if (!data || !data.responses) return;
         navigator.clipboard.writeText(JSON.stringify(data.responses, null, 2));
         toast.success('Raw JSON copied to clipboard');
+    };
+
+    const copyForAutoSender = () => {
+        if (selectedPendingPhones.length === 0) return toast.error('No students selected');
+        if (!whatsappMessage) return toast.error('Message cannot be empty');
+        
+        // Format: WHATSAPP_BULK|||Message text|||919876543210,919876543211
+        const dataStr = `WHATSAPP_BULK|||${whatsappMessage}|||${selectedPendingPhones.join(',')}`;
+        navigator.clipboard.writeText(dataStr);
+        toast.success('Copied! Open WhatsApp Web and press F9');
     };
 
     const openDeployModal = async () => {
@@ -619,19 +633,54 @@ export default function SurveyMonitorPage({ params }: { params: Promise<{ id: st
                     </div>
 
                     <div>
-                        <h3 className="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-orange-400" /> Pending Students ({pendingStudents.length})
-                        </h3>
-                        <div className="bg-black/20 border border-white/5 rounded-xl h-[200px] overflow-y-auto p-2 custom-scrollbar space-y-1">
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2">
+                                <Clock className="h-4 w-4 text-orange-400" /> Pending Students ({pendingStudents.length})
+                            </h3>
+                            <button
+                                onClick={() => {
+                                    if (selectedPendingPhones.length === pendingStudents.length) setSelectedPendingPhones([]);
+                                    else setSelectedPendingPhones(pendingStudents.map((s: any) => s.phone));
+                                }}
+                                className="text-xs text-blue-400 hover:text-blue-300 font-medium"
+                            >
+                                {selectedPendingPhones.length === pendingStudents.length ? 'Deselect All' : 'Select All'}
+                            </button>
+                        </div>
+                        <div className="bg-black/20 border border-white/5 rounded-xl h-[150px] overflow-y-auto p-2 custom-scrollbar space-y-1 mb-3">
                             {pendingStudents.length === 0 ? (
                                 <p className="text-xs text-slate-500 text-center py-4">All students have responded!</p>
-                            ) : pendingStudents.map((s: any) => (
-                                <div key={s.phone} className="flex flex-col p-2 rounded-lg bg-white/5 border border-transparent">
-                                    <div className="text-sm font-bold text-slate-300">{s.name}</div>
-                                    <div className="text-[10px] text-slate-500">{s.phone} • {s.courses?.join(', ')}</div>
-                                </div>
-                            ))}
+                            ) : pendingStudents.map((s: any) => {
+                                const isSelected = selectedPendingPhones.includes(s.phone);
+                                return (
+                                    <label key={s.phone} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-blue-500/10 border border-blue-500/20' : 'hover:bg-white/5 border border-transparent'}`}>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={isSelected}
+                                            onChange={(e) => {
+                                                if (e.target.checked) setSelectedPendingPhones(prev => [...prev, s.phone]);
+                                                else setSelectedPendingPhones(prev => prev.filter(p => p !== s.phone));
+                                            }}
+                                            className="rounded border-white/20 bg-slate-800 text-blue-500 focus:ring-blue-500/20"
+                                        />
+                                        <div>
+                                            <div className="text-sm font-bold text-slate-300">{s.name}</div>
+                                            <div className="text-[10px] text-slate-500">{s.phone} • {s.courses?.join(', ')}</div>
+                                        </div>
+                                    </label>
+                                );
+                            })}
                         </div>
+                        <input
+                            type="text" 
+                            placeholder="WhatsApp Message..." 
+                            value={whatsappMessage} 
+                            onChange={e => setWhatsappMessage(e.target.value)}
+                            className="w-full px-4 py-2 mb-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-blue-500"
+                        />
+                        <button onClick={copyForAutoSender} disabled={selectedPendingPhones.length === 0} className="w-full px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+                            Copy for WhatsApp Auto-Sender ({selectedPendingPhones.length})
+                        </button>
                     </div>
                 </div>
 
