@@ -1407,7 +1407,7 @@ export default function MonitorTestPage() {
                                                         </button>
                                                     </div>
                                                 </div>
-                                            ))}
+                                                )})}
                                         </div>
                                         </>
                                     )}
