@@ -259,6 +259,12 @@ export default function SurveyMonitorPage({ params }: { params: Promise<{ id: st
         (s.name.toLowerCase().includes(searchStudent.toLowerCase()) || s.phone.includes(searchStudent))
     );
 
+    const respondedPhones = new Set(responses.map((r: any) => r.studentPhone));
+    const pendingStudents = availableStudents.filter((s: any) => 
+        !respondedPhones.has(s.phone) &&
+        !survey.excludedStudents?.includes(s.phone)
+    );
+
     return (
         <div className="space-y-6">
             <Toaster position="top-center" />
@@ -610,6 +616,22 @@ export default function SurveyMonitorPage({ params }: { params: Promise<{ id: st
                         <button onClick={handleExclude} disabled={excludePhones.length === 0} className="w-full mt-3 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
                             Exclude Selected ({excludePhones.length})
                         </button>
+                    </div>
+
+                    <div>
+                        <h3 className="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-orange-400" /> Pending Students ({pendingStudents.length})
+                        </h3>
+                        <div className="bg-black/20 border border-white/5 rounded-xl h-[200px] overflow-y-auto p-2 custom-scrollbar space-y-1">
+                            {pendingStudents.length === 0 ? (
+                                <p className="text-xs text-slate-500 text-center py-4">All students have responded!</p>
+                            ) : pendingStudents.map((s: any) => (
+                                <div key={s.phone} className="flex flex-col p-2 rounded-lg bg-white/5 border border-transparent">
+                                    <div className="text-sm font-bold text-slate-300">{s.name}</div>
+                                    <div className="text-[10px] text-slate-500">{s.phone} • {s.courses?.join(', ')}</div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
 
