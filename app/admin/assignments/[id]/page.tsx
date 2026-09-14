@@ -1062,6 +1062,7 @@ export default function AssignmentDetailsPage() {
                                             </button>
                                         </div>
                                     )}
+                                </div>
                             </div>
                             );
                         })
