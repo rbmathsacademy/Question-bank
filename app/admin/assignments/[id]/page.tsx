@@ -866,8 +866,9 @@ export default function AssignmentDetailsPage() {
                                             )}
                                         </td>
                                     </tr>
-                                )})}
-                            )}
+                                );
+                            })
+                        )}
                         </tbody>
                     </table>
                 </div>
@@ -1062,7 +1063,8 @@ export default function AssignmentDetailsPage() {
                                         </div>
                                     )}
                             </div>
-                        )})}
+                            );
+                        })
                     )}
                 </div>
             </div>
