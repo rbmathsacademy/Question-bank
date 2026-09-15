@@ -164,25 +164,27 @@ export async function GET(
             attemptMap.set(attempt.studentPhone || attempt.studentEmail, attempt);
         });
 
-        // Fetch latest assignments and submissions for each batch
+        // Fetch recent assignments and submissions for each batch
         const Assignment = (await import('@/models/Assignment')).default;
         const AssignmentSubmission = (await import('@/models/AssignmentSubmission')).default;
         
-        const latestAssignmentsByBatch = new Map<string, string>();
+        const recentAssignments: any[] = [];
         for (const batch of deployedBatches) {
-            const latestAssign = await Assignment.findOne({ batch }).sort({ createdAt: -1 }).select('_id').lean();
-            if (latestAssign) {
-                latestAssignmentsByBatch.set(batch, (latestAssign as any)._id.toString());
-            }
+            const assigns = await Assignment.find({ batch }).sort({ createdAt: -1 }).limit(5).select('_id title batch createdAt').lean();
+            recentAssignments.push(...assigns);
         }
 
         const assignmentSubmissions = await AssignmentSubmission.find({
-            assignment: { $in: Array.from(latestAssignmentsByBatch.values()) }
+            assignment: { $in: recentAssignments.map(a => a._id) }
         }).select('student assignment').lean();
 
-        const studentSubmissions = new Set(
-            assignmentSubmissions.map((sub: any) => sub.student.toString() + '_' + sub.assignment.toString())
-        );
+        const studentSubmissionsMap = new Map<string, string[]>();
+        assignmentSubmissions.forEach((sub: any) => {
+            const studentId = sub.student.toString();
+            const assignId = sub.assignment.toString();
+            if (!studentSubmissionsMap.has(studentId)) studentSubmissionsMap.set(studentId, []);
+            studentSubmissionsMap.get(studentId)!.push(assignId);
+        });
 
         // Categorize students
         const completed: any[] = [];
@@ -191,11 +193,10 @@ export async function GET(
 
         for (const [phone, student] of studentMap) {
             const attempt = attemptMap.get(phone);
-            const latestAssignId = latestAssignmentsByBatch.get(student.batch);
-            const hasSubmittedLatestAssignment = latestAssignId ? studentSubmissions.has(student.studentId.toString() + '_' + latestAssignId) : false;
+            const submittedAssignments = studentSubmissionsMap.get(student.studentId.toString()) || [];
 
             if (!attempt) {
-                notStarted.push({ name: student.name, phone, alternativePhone: student.alternativePhone, guardianPhone: student.guardianPhone, batch: student.batch, hasSubmittedLatestAssignment });
+                notStarted.push({ name: student.name, phone, alternativePhone: student.alternativePhone, guardianPhone: student.guardianPhone, batch: student.batch, submittedAssignments });
             } else if (attempt.status === 'completed') {
                 completed.push({
                     name: student.name,
@@ -211,7 +212,7 @@ export async function GET(
                     terminationReason: attempt.terminationReason,
                     warningCount: attempt.warningCount || 0,
                     violationLog: attempt.violationLog || [],
-                    hasSubmittedLatestAssignment
+                    submittedAssignments
                 });
             } else if (attempt.status === 'in_progress') {
                 inProgress.push({
@@ -224,7 +225,7 @@ export async function GET(
                     timeElapsed: Date.now() - new Date(attempt.startedAt).getTime(),
                     warningCount: attempt.warningCount || 0,
                     violationLog: attempt.violationLog || [],
-                    hasSubmittedLatestAssignment
+                    submittedAssignments
                 });
             }
         }
@@ -338,7 +339,8 @@ export async function GET(
             completed,
             inProgress,
             notStarted,
-            excludedStudents: excludedStudentsList
+            excludedStudents: excludedStudentsList,
+            recentAssignments
         });
     } catch (error: any) {
         console.error('Error fetching test results:', error);

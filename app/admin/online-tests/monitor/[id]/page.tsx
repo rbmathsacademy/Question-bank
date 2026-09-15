@@ -117,10 +117,12 @@ export default function MonitorTestPage() {
             targets = notStarted;
             messageFn = (fName) => `This is to inform you that ${fName} was absent in the class today. I have not been informed about ${fName}'s absence, please make sure ${fName} is not missing the class unnecessarily.\n*_RB Sir (Maths)_*`;
         } else if (type === 'zero_submitted') {
-            targets = completed.filter(s => s.score === 0 && s.hasSubmittedLatestAssignment);
+            if (!referenceAssignmentId) return toast.error('Please select a reference assignment first.');
+            targets = completed.filter(s => s.score === 0 && s.submittedAssignments?.includes(referenceAssignmentId));
             messageFn = (fName) => `This is to inform you that ${fName} has scored 0 in today's class test although the same questions are solved in ${fName}'s submitted assignment. This means the assignment answers are simply copied from somewhere (internet/friend). Please take care of this situation.\n*_RB Sir (Maths)_*`;
         } else if (type === 'zero_unsubmitted') {
-            targets = completed.filter(s => s.score === 0 && !s.hasSubmittedLatestAssignment);
+            if (!referenceAssignmentId) return toast.error('Please select a reference assignment first.');
+            targets = completed.filter(s => s.score === 0 && !s.submittedAssignments?.includes(referenceAssignmentId));
             messageFn = (fName) => `This is to inform you that ${fName} has scored 0 in today's class test and also did not submit the assignment on this topic even after reminders. Please take care of this situation.\n*_RB Sir (Maths)_*`;
         }
 
@@ -149,6 +151,9 @@ export default function MonitorTestPage() {
         setShowCustomWAModal(false);
     };
 
+    const [recentAssignments, setRecentAssignments] = useState<any[]>([]);
+    const [referenceAssignmentId, setReferenceAssignmentId] = useState<string>('');
+
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
@@ -175,6 +180,10 @@ export default function MonitorTestPage() {
                 setInProgress(data.inProgress);
                 setNotStarted(data.notStarted);
                 setExcludedStudents(data.excludedStudents || []);
+                setRecentAssignments(data.recentAssignments || []);
+                if (data.recentAssignments && data.recentAssignments.length > 0 && !referenceAssignmentId) {
+                    setReferenceAssignmentId(data.recentAssignments[0]._id);
+                }
                 setSelectedPhones(new Set()); // Clear selection on refresh
             } else {
                 toast.error('Failed to load test results');
@@ -437,9 +446,24 @@ export default function MonitorTestPage() {
                             </button>
                         </div>
 
-                        <p className="text-slate-400 text-sm mb-6">
+                        <p className="text-slate-400 text-sm mb-4">
                             Select a scenario below to generate customized WhatsApp messages for guardians. The system will automatically insert each student's first name into the template.
                         </p>
+
+                        {recentAssignments.length > 0 && (
+                            <div className="mb-6">
+                                <label className="block text-xs text-slate-400 font-semibold mb-1.5">Reference Assignment</label>
+                                <select
+                                    value={referenceAssignmentId}
+                                    onChange={(e) => setReferenceAssignmentId(e.target.value)}
+                                    className="w-full px-3 py-2 bg-slate-800 border border-white/10 rounded-lg text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                                >
+                                    {recentAssignments.map(a => (
+                                        <option key={a._id} value={a._id}>{a.title} ({a.batch}) - {new Date(a.createdAt).toLocaleDateString()}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
 
                         <div className="space-y-3 mb-6">
                             <button
@@ -459,7 +483,7 @@ export default function MonitorTestPage() {
                             >
                                 <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 shrink-0">2</div>
                                 <div>
-                                    <h3 className="text-sm font-bold text-white mb-1">Scored 0 & Submitted Assignment ({completed.filter(s => s.score === 0 && s.hasSubmittedLatestAssignment).length})</h3>
+                                    <h3 className="text-sm font-bold text-white mb-1">Scored 0 & Submitted Assignment ({referenceAssignmentId ? completed.filter(s => s.score === 0 && s.submittedAssignments?.includes(referenceAssignmentId)).length : 0})</h3>
                                     <p className="text-xs text-slate-400">Notifies guardian that the student copied the assignment, since they scored 0 on identical test questions.</p>
                                 </div>
                             </button>
@@ -470,7 +494,7 @@ export default function MonitorTestPage() {
                             >
                                 <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 shrink-0">3</div>
                                 <div>
-                                    <h3 className="text-sm font-bold text-white mb-1">Scored 0 & Missed Assignment ({completed.filter(s => s.score === 0 && !s.hasSubmittedLatestAssignment).length})</h3>
+                                    <h3 className="text-sm font-bold text-white mb-1">Scored 0 & Missed Assignment ({referenceAssignmentId ? completed.filter(s => s.score === 0 && !s.submittedAssignments?.includes(referenceAssignmentId)).length : 0})</h3>
                                     <p className="text-xs text-slate-400">Notifies guardian that the student scored 0 and also failed to submit the assignment despite reminders.</p>
                                 </div>
                             </button>
