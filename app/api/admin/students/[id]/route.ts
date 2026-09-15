@@ -15,11 +15,12 @@ export async function PUT(
         await dbConnect();
         const { id } = await props.params;
         const body = await req.json();
-        const { name, phoneNumber, courses, guardianPhone, guardianName, email, schoolName, board, collegeName, modeOfClass } = body;
+        const { name, phoneNumber, alternativePhone, courses, guardianPhone, guardianName, email, schoolName, board, collegeName, modeOfClass } = body;
 
         const updateData: any = {};
         if (name !== undefined) updateData.name = name.trim();
         if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber.replace(/\D/g, '');
+        if (alternativePhone !== undefined) updateData.alternativePhone = alternativePhone?.replace(/\D/g, '') || null;
         if (courses !== undefined) updateData.courses = courses;
         if (guardianPhone !== undefined) updateData.guardianPhone = guardianPhone?.replace(/\D/g, '') || null;
         if (guardianName !== undefined) updateData.guardianName = guardianName?.trim() || null;

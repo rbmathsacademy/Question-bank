@@ -8,6 +8,7 @@ interface Student {
     _id: string;
     name: string;
     phoneNumber: string;
+    alternativePhone?: string;
     courses: string[];
     guardianPhone?: string;
     guardianName?: string;
@@ -65,7 +66,7 @@ export default function AdminStudents() {
 
     // Form state
     const [form, setForm] = useState({
-        name: '', phoneNumber: '', courses: [] as string[],
+        name: '', phoneNumber: '', alternativePhone: '', courses: [] as string[],
         guardianPhone: '', guardianName: '', email: '',
         schoolName: '', board: '', collegeName: '', modeOfClass: ''
     });
@@ -162,7 +163,7 @@ export default function AdminStudents() {
     };
 
     const resetForm = () => {
-        setForm({ name: '', phoneNumber: '', courses: [], guardianPhone: '', guardianName: '', email: '', schoolName: '', board: '', collegeName: '', modeOfClass: '' });
+        setForm({ name: '', phoneNumber: '', alternativePhone: '', courses: [], guardianPhone: '', guardianName: '', email: '', schoolName: '', board: '', collegeName: '', modeOfClass: '' });
         setNewCourseInput('');
     };
 
@@ -275,6 +276,7 @@ export default function AdminStudents() {
         setForm({
             name: student.name,
             phoneNumber: student.phoneNumber,
+            alternativePhone: student.alternativePhone || '',
             courses: [...student.courses],
             guardianPhone: student.guardianPhone || '',
             guardianName: student.guardianName || '',
@@ -536,14 +538,25 @@ export default function AdminStudents() {
                 />
             </div>
             {/* Phone */}
-            <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Phone Number *</label>
-                <input
-                    type="tel" value={form.phoneNumber}
-                    onChange={e => setForm({ ...form, phoneNumber: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50"
-                    placeholder="10-digit phone number"
-                />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Phone Number *</label>
+                    <input
+                        type="tel" value={form.phoneNumber}
+                        onChange={e => setForm({ ...form, phoneNumber: e.target.value })}
+                        className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50"
+                        placeholder="10-digit phone number"
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Alternative Phone</label>
+                    <input
+                        type="tel" value={form.alternativePhone}
+                        onChange={e => setForm({ ...form, alternativePhone: e.target.value })}
+                        className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50"
+                        placeholder="Alternative WhatsApp number"
+                    />
+                </div>
             </div>
             {/* Batches / Courses */}
             <div>

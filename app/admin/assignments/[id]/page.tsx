@@ -15,6 +15,8 @@ interface StudentSubmission {
         _id: string;
         name: string;
         phoneNumber: string;
+        alternativePhone?: string;
+        guardianPhone?: string;
         board?: string | null;
     };
     status: 'PENDING' | 'CORRECTED'; // Correction Status
@@ -78,15 +80,29 @@ export default function AssignmentDetailsPage() {
     // WhatsApp Auto Sender State
     const [selectedPhones, setSelectedPhones] = useState<string[]>([]);
     const [whatsappMessage, setWhatsappMessage] = useState('You have missed or have pending assignment submission!');
+    const [recipientMode, setRecipientMode] = useState<'student' | 'guardian'>('student');
 
     const copyForAutoSender = () => {
         if (selectedPhones.length === 0) return toast.error('No students selected');
         if (!whatsappMessage) return toast.error('Message cannot be empty');
         
+        // Map selected IDs to actual phone numbers based on mode
+        const actualPhones = selectedPhones.map(id => {
+            const student = students.find(s => s.student._id === id)?.student;
+            if (!student) return null;
+            if (recipientMode === 'guardian') {
+                return student.guardianPhone || null;
+            } else {
+                return student.alternativePhone || student.phoneNumber;
+            }
+        }).filter(Boolean);
+
+        if (actualPhones.length === 0) return toast.error('No valid phone numbers found for the selected mode');
+
         // Format: WHATSAPP_BULK|||Message text|||919876543210,919876543211
-        const dataStr = `WHATSAPP_BULK|||${whatsappMessage}|||${selectedPhones.join(',')}`;
+        const dataStr = `WHATSAPP_BULK|||${whatsappMessage}|||${actualPhones.join(',')}`;
         navigator.clipboard.writeText(dataStr);
-        toast.success('Copied! Open WhatsApp Web and press F9');
+        toast.success(`Copied ${actualPhones.length} number(s)! Open WhatsApp Web and press F9`);
     };
 
     useEffect(() => {
@@ -625,15 +641,27 @@ export default function AssignmentDetailsPage() {
                             <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2">
                                 📱 WhatsApp Auto-Sender
                             </h3>
-                            <button
-                                onClick={() => {
-                                    if (selectedPhones.length === filteredStudents.length) setSelectedPhones([]);
-                                    else setSelectedPhones(filteredStudents.map((s: any) => s.student.phoneNumber));
-                                }}
-                                className="text-xs text-blue-400 hover:text-blue-300 font-medium bg-blue-500/10 px-2 py-1 rounded transition-colors"
-                            >
-                                {selectedPhones.length === filteredStudents.length ? 'Deselect All' : 'Select All'}
-                            </button>
+                            <div className="flex items-center gap-3">
+                                <select 
+                                    value={recipientMode} 
+                                    onChange={e => setRecipientMode(e.target.value as any)}
+                                    className="bg-black/30 border border-white/10 rounded-lg px-2 py-1 text-xs text-gray-300 outline-none focus:border-blue-500 cursor-pointer"
+                                >
+                                    <option value="student">Send to Student</option>
+                                    <option value="guardian">Send to Guardian</option>
+                                </select>
+                                <button
+                                    onClick={() => {
+                                        // Wait, the id array stores `s.student._id` if I check line 656 below... 
+                                        // Wait, line 645 was mapping to s.student.phoneNumber. Let me update that to s.student._id as I changed how copyForAutoSender finds students!
+                                        if (selectedPhones.length === filteredStudents.length) setSelectedPhones([]);
+                                        else setSelectedPhones(filteredStudents.map((s: any) => s.student._id));
+                                    }}
+                                    className="text-xs text-blue-400 hover:text-blue-300 font-medium bg-blue-500/10 px-2 py-1 rounded transition-colors"
+                                >
+                                    {selectedPhones.length === filteredStudents.length ? 'Deselect All' : 'Select All'}
+                                </button>
+                            </div>
                         </div>
                         <input
                             type="text" 
@@ -672,7 +700,7 @@ export default function AssignmentDetailsPage() {
                                 </tr>
                             ) : (
                                 filteredStudents.map(student => {
-                                    const isSelected = selectedPhones.includes(student.student.phoneNumber);
+                                    const isSelected = selectedPhones.includes(student.student._id);
                                     return (
                                     <tr key={student.student._id} className={`hover:bg-white/5 transition-colors ${isSelected ? 'bg-blue-500/10' : ''}`}>
                                         {(submissionFilter === 'PENDING' || submissionFilter === 'MISSED') && (
@@ -681,8 +709,8 @@ export default function AssignmentDetailsPage() {
                                                     type="checkbox"
                                                     checked={isSelected}
                                                     onChange={(e) => {
-                                                        if (e.target.checked) setSelectedPhones(prev => [...prev, student.student.phoneNumber]);
-                                                        else setSelectedPhones(prev => prev.filter(p => p !== student.student.phoneNumber));
+                                                        if (e.target.checked) setSelectedPhones(prev => [...prev, student.student._id]);
+                                                        else setSelectedPhones(prev => prev.filter(p => p !== student.student._id));
                                                     }}
                                                     className="rounded border-white/20 bg-slate-800 text-blue-500 focus:ring-blue-500/20"
                                                 />

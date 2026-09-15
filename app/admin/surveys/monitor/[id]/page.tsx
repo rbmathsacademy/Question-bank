@@ -30,10 +30,6 @@ export default function SurveyMonitorPage({ params }: { params: Promise<{ id: st
     const [notifEndDate, setNotifEndDate] = useState('');
     const [notifSending, setNotifSending] = useState(false);
 
-    // Auto-Sender states
-    const [selectedPendingPhones, setSelectedPendingPhones] = useState<string[]>([]);
-    const [whatsappMessage, setWhatsappMessage] = useState('Hi, please fill out the survey!');
-
     const handleSendNotification = async () => {
         if (!notifHeader || !notifBody || !notifEndDate) return toast.error('Header, body, and End Date are required');
         setNotifSending(true);
@@ -193,14 +189,30 @@ export default function SurveyMonitorPage({ params }: { params: Promise<{ id: st
         toast.success('Raw JSON copied to clipboard');
     };
 
+    const [selectedPendingPhones, setSelectedPendingPhones] = useState<string[]>([]);
+    const [whatsappMessage, setWhatsappMessage] = useState('Hi, please fill out the survey!');
+    const [recipientModePending, setRecipientModePending] = useState<'student' | 'guardian'>('student');
+
     const copyForAutoSender = () => {
         if (selectedPendingPhones.length === 0) return toast.error('No students selected');
         if (!whatsappMessage) return toast.error('Message cannot be empty');
         
+        const actualPhones = selectedPendingPhones.map(phone => {
+            const student = pendingStudents.find((s: any) => s.phone === phone);
+            if (!student) return null;
+            if (recipientModePending === 'guardian') {
+                return student.guardianPhone || null;
+            } else {
+                return student.alternativePhone || student.phone;
+            }
+        }).filter(Boolean);
+
+        if (actualPhones.length === 0) return toast.error('No valid phone numbers found for the selected mode');
+
         // Format: WHATSAPP_BULK|||Message text|||919876543210,919876543211
-        const dataStr = `WHATSAPP_BULK|||${whatsappMessage}|||${selectedPendingPhones.join(',')}`;
+        const dataStr = `WHATSAPP_BULK|||${whatsappMessage}|||${actualPhones.join(',')}`;
         navigator.clipboard.writeText(dataStr);
-        toast.success('Copied! Open WhatsApp Web and press F9');
+        toast.success(`Copied ${actualPhones.length} number(s)! Open WhatsApp Web and press F9`);
     };
 
     const openDeployModal = async () => {
@@ -637,15 +649,25 @@ export default function SurveyMonitorPage({ params }: { params: Promise<{ id: st
                             <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2">
                                 <Clock className="h-4 w-4 text-orange-400" /> Pending Students ({pendingStudents.length})
                             </h3>
-                            <button
-                                onClick={() => {
-                                    if (selectedPendingPhones.length === pendingStudents.length) setSelectedPendingPhones([]);
-                                    else setSelectedPendingPhones(pendingStudents.map((s: any) => s.phone));
-                                }}
-                                className="text-xs text-blue-400 hover:text-blue-300 font-medium"
-                            >
-                                {selectedPendingPhones.length === pendingStudents.length ? 'Deselect All' : 'Select All'}
-                            </button>
+                            <div className="flex items-center gap-3">
+                                <select 
+                                    value={recipientModePending} 
+                                    onChange={e => setRecipientModePending(e.target.value as any)}
+                                    className="bg-slate-800 border border-white/10 rounded-lg px-2 py-1 text-xs text-gray-300 outline-none focus:border-blue-500 cursor-pointer"
+                                >
+                                    <option value="student">Send to Student</option>
+                                    <option value="guardian">Send to Guardian</option>
+                                </select>
+                                <button
+                                    onClick={() => {
+                                        if (selectedPendingPhones.length === pendingStudents.length) setSelectedPendingPhones([]);
+                                        else setSelectedPendingPhones(pendingStudents.map((s: any) => s.phone));
+                                    }}
+                                    className="text-xs text-blue-400 hover:text-blue-300 font-medium bg-blue-500/10 px-2 py-1 rounded transition-colors"
+                                >
+                                    {selectedPendingPhones.length === pendingStudents.length ? 'Deselect All' : 'Select All'}
+                                </button>
+                            </div>
                         </div>
                         <div className="bg-black/20 border border-white/5 rounded-xl h-[150px] overflow-y-auto p-2 custom-scrollbar space-y-1 mb-3">
                             {pendingStudents.length === 0 ? (

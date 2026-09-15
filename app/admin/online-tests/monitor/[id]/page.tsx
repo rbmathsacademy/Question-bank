@@ -82,15 +82,29 @@ export default function MonitorTestPage() {
     // Auto-Sender states for missed students
     const [selectedMissedPhones, setSelectedMissedPhones] = useState<string[]>([]);
     const [whatsappMessageMissed, setWhatsappMessageMissed] = useState('You have missed your test!');
+    const [recipientModeMissed, setRecipientModeMissed] = useState<'student' | 'guardian'>('student');
 
     const copyForAutoSenderMissed = () => {
         if (selectedMissedPhones.length === 0) return toast.error('No students selected');
         if (!whatsappMessageMissed) return toast.error('Message cannot be empty');
         
+        // Map selected IDs (phones) to actual phone numbers based on mode
+        const actualPhones = selectedMissedPhones.map(phone => {
+            const student = notStarted.find(s => s.phone === phone);
+            if (!student) return null;
+            if (recipientModeMissed === 'guardian') {
+                return student.guardianPhone || null;
+            } else {
+                return student.alternativePhone || student.phone;
+            }
+        }).filter(Boolean);
+
+        if (actualPhones.length === 0) return toast.error('No valid phone numbers found for the selected mode');
+
         // Format: WHATSAPP_BULK|||Message text|||919876543210,919876543211
-        const dataStr = `WHATSAPP_BULK|||${whatsappMessageMissed}|||${selectedMissedPhones.join(',')}`;
+        const dataStr = `WHATSAPP_BULK|||${whatsappMessageMissed}|||${actualPhones.join(',')}`;
         navigator.clipboard.writeText(dataStr);
-        toast.success('Copied! Open WhatsApp Web and press F9');
+        toast.success(`Copied ${actualPhones.length} number(s)! Open WhatsApp Web and press F9`);
     };
 
     useEffect(() => {
@@ -1264,15 +1278,25 @@ export default function MonitorTestPage() {
                                             <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2">
                                                 📱 WhatsApp Auto-Sender (Missed Students)
                                             </h3>
-                                            <button
-                                                onClick={() => {
-                                                    if (selectedMissedPhones.length === notStarted.length) setSelectedMissedPhones([]);
-                                                    else setSelectedMissedPhones(notStarted.map((s: any) => s.phone));
-                                                }}
-                                                className="text-xs text-blue-400 hover:text-blue-300 font-medium bg-blue-500/10 px-2 py-1 rounded transition-colors"
-                                            >
-                                                {selectedMissedPhones.length === notStarted.length ? 'Deselect All' : 'Select All'}
-                                            </button>
+                                            <div className="flex items-center gap-3">
+                                                <select 
+                                                    value={recipientModeMissed} 
+                                                    onChange={e => setRecipientModeMissed(e.target.value as any)}
+                                                    className="bg-slate-800 border border-white/10 rounded-lg px-2 py-1 text-xs text-gray-300 outline-none focus:border-blue-500 cursor-pointer"
+                                                >
+                                                    <option value="student">Send to Student</option>
+                                                    <option value="guardian">Send to Guardian</option>
+                                                </select>
+                                                <button
+                                                    onClick={() => {
+                                                        if (selectedMissedPhones.length === notStarted.length) setSelectedMissedPhones([]);
+                                                        else setSelectedMissedPhones(notStarted.map((s: any) => s.phone));
+                                                    }}
+                                                    className="text-xs text-blue-400 hover:text-blue-300 font-medium bg-blue-500/10 px-2 py-1 rounded transition-colors"
+                                                >
+                                                    {selectedMissedPhones.length === notStarted.length ? 'Deselect All' : 'Select All'}
+                                                </button>
+                                            </div>
                                         </div>
                                         <input
                                             type="text" 

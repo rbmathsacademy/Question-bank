@@ -32,7 +32,7 @@ export async function GET(
         const deployedBatches = test.deployment?.batches || [];
 
         // Get all students from MongoDB for the deployed batches
-        const dbStudents = await BatchStudent.find({ courses: { $in: deployedBatches } }).select('phoneNumber name courses').lean() as any[];
+        const dbStudents = await BatchStudent.find({ courses: { $in: deployedBatches } }).select('phoneNumber alternativePhone guardianPhone name courses').lean() as any[];
 
         // Create student map
         const excludedPhones: string[] = test.excludedStudents || [];
@@ -44,6 +44,8 @@ export async function GET(
             const info = {
                 name: s.name || 'Unknown',
                 phone: s.phoneNumber,
+                alternativePhone: s.alternativePhone,
+                guardianPhone: s.guardianPhone,
                 batch: matchingBatch
             };
             if (excludedSet.has(s.phoneNumber)) {
@@ -170,7 +172,7 @@ export async function GET(
             const attempt = attemptMap.get(phone);
 
             if (!attempt) {
-                notStarted.push({ name: student.name, phone, batch: student.batch });
+                notStarted.push({ name: student.name, phone, alternativePhone: student.alternativePhone, guardianPhone: student.guardianPhone, batch: student.batch });
             } else if (attempt.status === 'completed') {
                 completed.push({
                     name: student.name,

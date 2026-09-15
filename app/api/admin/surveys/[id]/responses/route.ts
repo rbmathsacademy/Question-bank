@@ -130,11 +130,13 @@ export async function GET(
         let availableStudents: any[] = [];
         
         if (deployedBatches.length > 0) {
-            const allStudents = await BatchStudent.find({ courses: { $in: deployedBatches } }).select('phoneNumber name courses').lean() as any[];
+            const allStudents = await BatchStudent.find({ courses: { $in: deployedBatches } }).select('phoneNumber alternativePhone guardianPhone name courses').lean() as any[];
             
             availableStudents = allStudents.map(s => ({
                 name: s.name || 'Unknown',
                 phone: s.phoneNumber,
+                alternativePhone: s.alternativePhone,
+                guardianPhone: s.guardianPhone,
                 courses: s.courses
             }));
 

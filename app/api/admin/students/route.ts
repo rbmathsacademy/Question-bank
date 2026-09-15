@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
 
         const [students, total] = await Promise.all([
             BatchStudent.find(query)
-                .select('name phoneNumber courses guardianPhone guardianName email schoolName board guestClass collegeName modeOfClass createdAt')
+                .select('name phoneNumber alternativePhone courses guardianPhone guardianName email schoolName board guestClass collegeName modeOfClass createdAt')
                 .lean()
                 .sort({ name: 1 })
                 .skip((page - 1) * limit)
@@ -97,6 +97,7 @@ export async function POST(req: NextRequest) {
         const student = await BatchStudent.create({
             name: name.trim(),
             phoneNumber: cleanPhone,
+            alternativePhone: body.alternativePhone?.replace(/\D/g, '') || undefined,
             courses: courses || [],
             guardianPhone: guardianPhone?.replace(/\D/g, '') || undefined,
             guardianName: guardianName?.trim() || undefined,

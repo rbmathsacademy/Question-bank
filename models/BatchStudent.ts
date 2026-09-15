@@ -6,6 +6,7 @@ const BatchStudentSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
+    alternativePhone: { type: String, trim: true },
     name: String,
     courses: [String],
     guardianPhone: { type: String, trim: true },

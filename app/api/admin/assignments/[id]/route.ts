@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
         // Fetch submissions with student info
         const submissions = await AssignmentSubmission.find({ assignment: id })
-            .populate('student', 'name phoneNumber')
+            .populate('student', 'name phoneNumber alternativePhone guardianPhone')
             .lean();
 
         // Fetch all students in the batch
@@ -72,6 +72,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
                     _id: student._id,
                     name: student.name,
                     phoneNumber: student.phoneNumber,
+                    alternativePhone: student.alternativePhone,
+                    guardianPhone: student.guardianPhone,
                     board: student.board || null
                 },
                 status: correctionStatus,
