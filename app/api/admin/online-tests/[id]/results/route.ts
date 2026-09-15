@@ -42,6 +42,7 @@ export async function GET(
         dbStudents.forEach(s => {
             const matchingBatch = s.courses?.find((c: string) => deployedBatches.includes(c)) || s.courses?.[0] || '';
             const info = {
+                studentId: s._id,
                 name: s.name || 'Unknown',
                 phone: s.phoneNumber,
                 alternativePhone: s.alternativePhone,
@@ -163,6 +164,26 @@ export async function GET(
             attemptMap.set(attempt.studentPhone || attempt.studentEmail, attempt);
         });
 
+        // Fetch latest assignments and submissions for each batch
+        const Assignment = (await import('@/models/Assignment')).default;
+        const AssignmentSubmission = (await import('@/models/AssignmentSubmission')).default;
+        
+        const latestAssignmentsByBatch = new Map<string, string>();
+        for (const batch of deployedBatches) {
+            const latestAssign = await Assignment.findOne({ batch }).sort({ createdAt: -1 }).select('_id').lean();
+            if (latestAssign) {
+                latestAssignmentsByBatch.set(batch, (latestAssign as any)._id.toString());
+            }
+        }
+
+        const assignmentSubmissions = await AssignmentSubmission.find({
+            assignment: { $in: Array.from(latestAssignmentsByBatch.values()) }
+        }).select('student assignment').lean();
+
+        const studentSubmissions = new Set(
+            assignmentSubmissions.map((sub: any) => sub.student.toString() + '_' + sub.assignment.toString())
+        );
+
         // Categorize students
         const completed: any[] = [];
         const inProgress: any[] = [];
@@ -170,13 +191,17 @@ export async function GET(
 
         for (const [phone, student] of studentMap) {
             const attempt = attemptMap.get(phone);
+            const latestAssignId = latestAssignmentsByBatch.get(student.batch);
+            const hasSubmittedLatestAssignment = latestAssignId ? studentSubmissions.has(student.studentId.toString() + '_' + latestAssignId) : false;
 
             if (!attempt) {
-                notStarted.push({ name: student.name, phone, alternativePhone: student.alternativePhone, guardianPhone: student.guardianPhone, batch: student.batch });
+                notStarted.push({ name: student.name, phone, alternativePhone: student.alternativePhone, guardianPhone: student.guardianPhone, batch: student.batch, hasSubmittedLatestAssignment });
             } else if (attempt.status === 'completed') {
                 completed.push({
                     name: student.name,
                     phone,
+                    alternativePhone: student.alternativePhone,
+                    guardianPhone: student.guardianPhone,
                     batch: student.batch,
                     score: Math.round((Number(attempt.score) + Number.EPSILON) * 100) / 100,
                     percentage: Math.round((Number(attempt.percentage) + Number.EPSILON) * 100) / 100,
@@ -185,17 +210,21 @@ export async function GET(
                     graceMarks: attempt.graceMarks || 0,
                     terminationReason: attempt.terminationReason,
                     warningCount: attempt.warningCount || 0,
-                    violationLog: attempt.violationLog || []
+                    violationLog: attempt.violationLog || [],
+                    hasSubmittedLatestAssignment
                 });
             } else if (attempt.status === 'in_progress') {
                 inProgress.push({
                     name: student.name,
                     phone,
+                    alternativePhone: student.alternativePhone,
+                    guardianPhone: student.guardianPhone,
                     batch: student.batch,
                     startedAt: attempt.startedAt,
                     timeElapsed: Date.now() - new Date(attempt.startedAt).getTime(),
                     warningCount: attempt.warningCount || 0,
-                    violationLog: attempt.violationLog || []
+                    violationLog: attempt.violationLog || [],
+                    hasSubmittedLatestAssignment
                 });
             }
         }

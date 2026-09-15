@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Users, Trophy, Clock, XCircle, RefreshCw, BarChart3, Target, TrendingUp, Award, Percent, RotateCcw, CalendarClock, Eye, ShieldAlert, UserMinus, UserPlus, User, ChevronDown, ChevronUp, FileDown } from 'lucide-react';
+import { ArrowLeft, Users, Trophy, Clock, XCircle, X, MessageSquare, RefreshCw, BarChart3, Target, TrendingUp, Award, Percent, RotateCcw, CalendarClock, Eye, ShieldAlert, UserMinus, UserPlus, User, ChevronDown, ChevronUp, FileDown } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 import SubmissionReviewModal from '../components/SubmissionReviewModal';
 import { openQuestionPaperPrint } from '../components/openQuestionPaperPrint';
@@ -105,6 +105,48 @@ export default function MonitorTestPage() {
         const dataStr = `WHATSAPP_BULK|||${whatsappMessageMissed}|||${actualPhones.join(',')}`;
         navigator.clipboard.writeText(dataStr);
         toast.success(`Copied ${actualPhones.length} number(s)! Open WhatsApp Web and press F9`);
+    };
+
+    const [showCustomWAModal, setShowCustomWAModal] = useState(false);
+
+    const handleCustomWACopy = (type: 'missed' | 'zero_submitted' | 'zero_unsubmitted') => {
+        let targets: any[] = [];
+        let messageFn: (firstName: string) => string;
+
+        if (type === 'missed') {
+            targets = notStarted;
+            messageFn = (fName) => `This is to inform you that ${fName} was absent in the class today. I have not been infomed about his absence, please make sure ${fName} is not missing the class unecessarily.\n*_RB Sir (Maths)_*`;
+        } else if (type === 'zero_submitted') {
+            targets = completed.filter(s => s.score === 0 && s.hasSubmittedLatestAssignment);
+            messageFn = (fName) => `This is to inform you that ${fName} has scored 0 in today's class test although the same questions are solved in ${fName}'s submitted assignment. This means the assignment answers are simply copied from somewhere (internet/friend). Please take care of this situation.\n*_RB Sir (Maths)_*`;
+        } else if (type === 'zero_unsubmitted') {
+            targets = completed.filter(s => s.score === 0 && !s.hasSubmittedLatestAssignment);
+            messageFn = (fName) => `This is to inform you that ${fName} has scored 0 in today's class test and also did not submit the assignment on this topic even after reminders. Please take care of this situation.\n*_RB Sir (Maths)_*`;
+        }
+
+        if (targets.length === 0) {
+            return toast.error('No students found for this scenario.');
+        }
+
+        const missingPhones = targets.filter(s => !s.guardianPhone).map(s => s.name);
+        if (missingPhones.length > 0) {
+            toast.error(`Missing Guardian Phone for: ${missingPhones.join(', ')}`, { duration: 6000 });
+        }
+
+        const validTargets = targets.filter(s => s.guardianPhone);
+        if (validTargets.length === 0) {
+            return toast.error('No valid guardian phone numbers found.');
+        }
+
+        const dynamicParts = validTargets.map(s => {
+            const fName = s.name.split(' ')[0];
+            return `${s.guardianPhone}~~~${messageFn(fName)}`;
+        });
+
+        const dataStr = `WHATSAPP_DYNAMIC|||${dynamicParts.join('|||')}`;
+        navigator.clipboard.writeText(dataStr);
+        toast.success(`Copied messages for ${validTargets.length} guardian(s)! Open WhatsApp Web and press F9.`);
+        setShowCustomWAModal(false);
     };
 
     useEffect(() => {
@@ -379,6 +421,64 @@ export default function MonitorTestPage() {
                 </div>
             )}
 
+            {/* Custom WhatsApp Modal */}
+            {showCustomWAModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+                    <div className="bg-[#0f172a] border border-white/10 rounded-2xl w-full max-w-lg p-6 shadow-2xl animate-in zoom-in duration-200">
+                        <div className="flex justify-between items-center mb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-emerald-500/20">
+                                    <MessageSquare className="w-5 h-5 text-emerald-400" />
+                                </div>
+                                <h2 className="text-lg font-bold text-white">Custom WhatsApp Sender</h2>
+                            </div>
+                            <button onClick={() => setShowCustomWAModal(false)} className="text-slate-400 hover:text-white transition-colors">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <p className="text-slate-400 text-sm mb-6">
+                            Select a scenario below to generate customized WhatsApp messages for guardians. The system will automatically insert each student's first name into the template.
+                        </p>
+
+                        <div className="space-y-3 mb-6">
+                            <button
+                                onClick={() => handleCustomWACopy('missed')}
+                                className="w-full p-4 rounded-xl border border-white/10 bg-slate-800/50 hover:bg-slate-800 transition-colors text-left flex items-start gap-4"
+                            >
+                                <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 shrink-0">1</div>
+                                <div>
+                                    <h3 className="text-sm font-bold text-white mb-1">Missed Test ({notStarted.length})</h3>
+                                    <p className="text-xs text-slate-400">Notifies guardian that the student was absent for the test without prior information.</p>
+                                </div>
+                            </button>
+
+                            <button
+                                onClick={() => handleCustomWACopy('zero_submitted')}
+                                className="w-full p-4 rounded-xl border border-white/10 bg-slate-800/50 hover:bg-slate-800 transition-colors text-left flex items-start gap-4"
+                            >
+                                <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 shrink-0">2</div>
+                                <div>
+                                    <h3 className="text-sm font-bold text-white mb-1">Scored 0 & Submitted Assignment ({completed.filter(s => s.score === 0 && s.hasSubmittedLatestAssignment).length})</h3>
+                                    <p className="text-xs text-slate-400">Notifies guardian that the student copied the assignment, since they scored 0 on identical test questions.</p>
+                                </div>
+                            </button>
+
+                            <button
+                                onClick={() => handleCustomWACopy('zero_unsubmitted')}
+                                className="w-full p-4 rounded-xl border border-white/10 bg-slate-800/50 hover:bg-slate-800 transition-colors text-left flex items-start gap-4"
+                            >
+                                <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 shrink-0">3</div>
+                                <div>
+                                    <h3 className="text-sm font-bold text-white mb-1">Scored 0 & Missed Assignment ({completed.filter(s => s.score === 0 && !s.hasSubmittedLatestAssignment).length})</h3>
+                                    <p className="text-xs text-slate-400">Notifies guardian that the student scored 0 and also failed to submit the assignment despite reminders.</p>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Missed Students Reassign Modal */}
             {showMissedModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -466,6 +566,14 @@ export default function MonitorTestPage() {
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 self-start">
+                                <button
+                                    onClick={() => setShowCustomWAModal(true)}
+                                    className="px-3 py-1.5 sm:px-4 sm:py-2 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-400 rounded-lg flex items-center gap-2 transition-colors text-xs sm:text-sm font-bold"
+                                    title="Custom Guardian WhatsApp Sender"
+                                >
+                                    <MessageSquare className="h-4 w-4" />
+                                    <span className="hidden sm:inline">Guardian WhatsApp</span>
+                                </button>
                                 <button
                                     onClick={handleDownloadQuestionPaper}
                                     disabled={downloadingPDF || !testInfo}
