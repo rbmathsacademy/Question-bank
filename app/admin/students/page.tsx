@@ -72,6 +72,7 @@ export default function AdminStudents() {
     });
     const [bulkText, setBulkText] = useState('');
     const [newCourseInput, setNewCourseInput] = useState('');
+    const [guardianFilter, setGuardianFilter] = useState('');
 
     const fetchStudents = useCallback(async () => {
         setLoading(true);
@@ -82,6 +83,7 @@ export default function AdminStudents() {
             if (schoolFilter) params.set('school', schoolFilter);
             if (collegeFilter) params.set('college', collegeFilter);
             if (modeFilter)   params.set('mode', modeFilter);
+            if (guardianFilter === 'missing') params.set('missingGuardian', 'true');
 
             const res = await fetch(`/api/admin/students?${params}`, { cache: 'no-store' });
             if (!res.ok) throw new Error('Failed to fetch');
@@ -94,7 +96,7 @@ export default function AdminStudents() {
         } finally {
             setLoading(false);
         }
-    }, [page, search, batchFilter, schoolFilter, collegeFilter, modeFilter]);
+    }, [page, search, batchFilter, schoolFilter, collegeFilter, modeFilter, guardianFilter]);
 
     const fetchBatches = async () => {
         try {
@@ -791,6 +793,18 @@ export default function AdminStudents() {
                     <option value="online" className="bg-slate-800 text-white">Online</option>
                     <option value="offline" className="bg-slate-800 text-white">Offline</option>
                     <option value="none" className="bg-slate-800 text-white">Unassigned</option>
+                </select>
+                {/* Guardian Filter */}
+                <select
+                    value={guardianFilter}
+                    onChange={e => {
+                        setGuardianFilter(e.target.value);
+                        setPage(1);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-blue-500 w-full sm:w-auto min-w-[140px]"
+                >
+                    <option value="" className="bg-slate-800 text-white">All Guardians</option>
+                    <option value="missing" className="bg-slate-800 text-white">Missing Guardian Number</option>
                 </select>
             </div>
 

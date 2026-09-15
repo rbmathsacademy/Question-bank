@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
         const school = searchParams.get('school');
         const college = searchParams.get('college');
         const mode = searchParams.get('mode');
+        const missingGuardian = searchParams.get('missingGuardian');
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '50');
 
@@ -40,13 +41,32 @@ export async function GET(req: NextRequest) {
             query.modeOfClass = mode;
         }
 
+        if (missingGuardian === 'true') {
+            query.$or = [
+                { guardianPhone: { $exists: false } },
+                { guardianPhone: null },
+                { guardianPhone: "" }
+            ];
+        }
+
         if (search) {
             const fuzzySearch = search.trim().split(/\s+/).join('.*');
             const searchRegex = { $regex: fuzzySearch, $options: 'i' };
-            query.$or = [
-                { name: searchRegex },
-                { phoneNumber: searchRegex }
-            ];
+            
+            if (query.$or) {
+                // If query.$or already exists (e.g. from missingGuardian), we must wrap both in $and
+                const existingOr = query.$or;
+                delete query.$or;
+                query.$and = [
+                    { $or: existingOr },
+                    { $or: [ { name: searchRegex }, { phoneNumber: searchRegex } ] }
+                ];
+            } else {
+                query.$or = [
+                    { name: searchRegex },
+                    { phoneNumber: searchRegex }
+                ];
+            }
         }
 
         const [students, total] = await Promise.all([

@@ -1,0 +1,713 @@
+[
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Aaratrika Mukherjee 11 2026",
+    "extractedName": "aaratrika mukherjee 11 2026",
+    "matchedStudentName": "Aaratrika Mukherjee",
+    "csvPhone": "919830954942",
+    "distance": 8,
+    "matchedStudentId": "6a02e3501e9bb9cfc79b5a7a",
+    "matchedStudentPhone": "7003737652"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Abhilasha Das 12 2026",
+    "extractedName": "abhilasha das 12 2026",
+    "matchedStudentName": "Abhilasha Das",
+    "csvPhone": "919038860472",
+    "distance": 8,
+    "matchedStudentId": "69ad22f61248a260532a21a7",
+    "matchedStudentPhone": "9038746822"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Adrija Dalui 12 2026",
+    "extractedName": "adrija dalui 12 2026",
+    "matchedStudentName": "Adrija Dalui",
+    "csvPhone": "919051469267",
+    "distance": 8,
+    "matchedStudentId": "69be55238779c9fc72392a83",
+    "matchedStudentPhone": "7439488941"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Adrija Das 11 2026",
+    "extractedName": "adrija das 11 2026",
+    "matchedStudentName": "Adrija Das",
+    "csvPhone": "919051113142",
+    "distance": 8,
+    "matchedStudentId": "6a7c87c58bbc8111c0ad4feb",
+    "matchedStudentPhone": "8902486946"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Agniv Saha 11 2026",
+    "extractedName": "agniv saha 11 2026",
+    "matchedStudentName": "Agniv Saha",
+    "csvPhone": "919123679477",
+    "distance": 8,
+    "matchedStudentId": "6a4260ff4f48570ce4e1b323",
+    "matchedStudentPhone": "7980801510"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Ahana Das 11 2026",
+    "extractedName": "ahana das 11 2026",
+    "matchedStudentName": "Ahana Das",
+    "csvPhone": "918335098424",
+    "distance": 8,
+    "matchedStudentId": "6a7c87b074313ad88ee43c81",
+    "matchedStudentPhone": "8335098424"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Aindrila Ghosh 11 2026",
+    "extractedName": "aindrila ghosh 11 2026",
+    "matchedStudentName": "Aindrila Ghosh",
+    "csvPhone": "917585960510",
+    "distance": 8,
+    "matchedStudentId": "69ef699982094d2c055199d6",
+    "matchedStudentPhone": "9123347578"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Aishani Thakurta 11 2026",
+    "extractedName": "aishani thakurta 11 2026",
+    "matchedStudentName": "Aishani Guha Thakurta",
+    "csvPhone": "919432350101",
+    "distance": 13,
+    "matchedStudentId": "69cd61c4fbd7dca30c807f35",
+    "matchedStudentPhone": "7595967728"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Anik Roy 11 2026",
+    "extractedName": "anik roy 11 2026",
+    "matchedStudentName": "Anik Roy",
+    "csvPhone": "919748361072",
+    "distance": 8,
+    "matchedStudentId": "6a453c17fc531eb46a2fc246",
+    "matchedStudentPhone": "8902843662"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Annesha Halder 11 2026",
+    "extractedName": "annesha halder 11 2026",
+    "matchedStudentName": "Annesha Halder",
+    "csvPhone": "918697443489",
+    "distance": 8,
+    "matchedStudentId": "69ecc11d06c622088cefa7ba",
+    "matchedStudentPhone": "8910902933"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Annika Debnath 11 2026",
+    "extractedName": "annika debnath 11 2026",
+    "matchedStudentName": "Annika Debnath",
+    "csvPhone": "919874054139",
+    "distance": 8,
+    "matchedStudentId": "69cbb66f004eba8cddd4da0f",
+    "matchedStudentPhone": "9330378819"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Anuraag Ghosh 11 2026",
+    "extractedName": "anuraag ghosh 11 2026",
+    "matchedStudentName": "Anuraag Ghosh",
+    "csvPhone": "919433140197",
+    "distance": 8,
+    "matchedStudentId": "69ccf3bd98d3d653ee3ceef5",
+    "matchedStudentPhone": "9831235905"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Anuska Ganguly 11 2026",
+    "extractedName": "anuska ganguly 11 2026",
+    "matchedStudentName": "Anuska Ganguly",
+    "csvPhone": "919432080199",
+    "distance": 8,
+    "matchedStudentId": "69cd4bb02631f03a2a5cb08e",
+    "matchedStudentPhone": "8620091006"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Archisman Roy 12 2026",
+    "extractedName": "archisman roy 12 2026",
+    "matchedStudentName": "Archisman Roy",
+    "csvPhone": "918584904450",
+    "distance": 8,
+    "matchedStudentId": "69c007cd25bb4a3052f45bdf",
+    "matchedStudentPhone": "6290202396"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Arghya Roy Chowdhury 11 2026",
+    "extractedName": "arghya roy chowdhury 11 2026",
+    "matchedStudentName": "Arghya Roy Chowdhury",
+    "csvPhone": "919830204129",
+    "distance": 8,
+    "matchedStudentId": "69cfd0e609ab214df9767c54",
+    "matchedStudentPhone": "9883042874"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Avirup Mondal 12 2026",
+    "extractedName": "avirup mondal 12 2026",
+    "matchedStudentName": "Avirup Mondal",
+    "csvPhone": "919874353272",
+    "distance": 8,
+    "matchedStudentId": "6a24e880273776508a8302bb",
+    "matchedStudentPhone": "7439782093"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Ayush Kumar Shaw 11 2026",
+    "extractedName": "ayush kumar shaw 11 2026",
+    "matchedStudentName": "Ayush Kumar Shaw",
+    "csvPhone": "918420003073",
+    "distance": 8,
+    "matchedStudentId": "69f5fa911e72f859357a7a9f",
+    "matchedStudentPhone": "6291742917"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Ayushman Halder 12 2026",
+    "extractedName": "ayushman halder 12 2026",
+    "matchedStudentName": "Ayushman Halder",
+    "csvPhone": "917595888147",
+    "distance": 8,
+    "matchedStudentId": "69c28debe12a64ffc21a712a",
+    "matchedStudentPhone": "7044972298"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Ayush Dutta 11 (2025)",
+    "extractedName": "ayush dutta 11 (2025)",
+    "matchedStudentName": "Ayush Dutta",
+    "csvPhone": "919874688639",
+    "distance": 10,
+    "matchedStudentId": "698ee7152c38b8866d36126e",
+    "matchedStudentPhone": "9831749579"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Bhumisuta Sengupta 11 2026",
+    "extractedName": "bhumisuta sengupta 11 2026",
+    "matchedStudentName": "Bhumisuta Sengupta",
+    "csvPhone": "919836694508",
+    "distance": 8,
+    "matchedStudentId": "69f4c9de6ae36e5bb170b83d",
+    "matchedStudentPhone": "6291334485"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Bianca Ganguly 11 2026",
+    "extractedName": "bianca ganguly 11 2026",
+    "matchedStudentName": "Bianca Ganguly",
+    "csvPhone": "917044847545",
+    "distance": 8,
+    "matchedStudentId": "69dc9e9733c9e81a6f3d34bb",
+    "matchedStudentPhone": "6289292885"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. C. Siddharth 11 2026",
+    "extractedName": "c. siddharth 11 2026",
+    "matchedStudentName": "C. Siddharth",
+    "csvPhone": "919836437974",
+    "distance": 8,
+    "matchedStudentId": "69d3ea3935e31fcb7aba4088",
+    "matchedStudentPhone": "9831505306"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Chris Christiano Dey 12 2026",
+    "extractedName": "chris christiano dey 12 2026",
+    "matchedStudentName": "Chris Christiano Dey",
+    "csvPhone": "919433603996",
+    "distance": 8,
+    "matchedStudentId": "6a20f860833ec4e69e25f03b",
+    "matchedStudentPhone": "7980139870"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Debadrita Mondal 11 2026",
+    "extractedName": "debadrita mondal 11 2026",
+    "matchedStudentName": "Debadrita Mondal",
+    "csvPhone": "918240564426",
+    "distance": 8,
+    "matchedStudentId": "69d4a0e019f77b13f407fc36",
+    "matchedStudentPhone": "8100266343"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Debdatta Naiya 12 2026",
+    "extractedName": "debdatta naiya 12 2026",
+    "matchedStudentName": "Debdatta Naiya",
+    "csvPhone": "919434504431",
+    "distance": 8,
+    "matchedStudentId": "69cbec2a2c60b3b17acae121",
+    "matchedStudentPhone": "9153246282"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Debjit Das 11 2026",
+    "extractedName": "debjit das 11 2026",
+    "matchedStudentName": "Debjit Das",
+    "csvPhone": "919903224014",
+    "distance": 8,
+    "matchedStudentId": "69cc16ad6ad6c303cff2a026",
+    "matchedStudentPhone": "9874988839"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Debotri Bhadra 11 2025",
+    "extractedName": "debotri bhadra 11 2025",
+    "matchedStudentName": "Debotri Bhadra",
+    "csvPhone": "919903397830",
+    "distance": 8,
+    "matchedStudentId": "698ee7152c38b8866d361270",
+    "matchedStudentPhone": "8017356024"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Dishani Jana 11 2026",
+    "extractedName": "dishani jana 11 2026",
+    "matchedStudentName": "Dishani Jana",
+    "csvPhone": "919674338547",
+    "distance": 8,
+    "matchedStudentId": "69c3ed1fce135cb67db23227",
+    "matchedStudentPhone": "9674732613"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Hanshika Agarwal 12 2026",
+    "extractedName": "hanshika agarwal 12 2026",
+    "matchedStudentName": "Hanshika Agarwal",
+    "csvPhone": "919339439964",
+    "distance": 8,
+    "matchedStudentId": "69bc287df2f59942ac04c79e",
+    "matchedStudentPhone": "7907677984"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Jyotirmoy Mondal 12 2026",
+    "extractedName": "jyotirmoy mondal 12 2026",
+    "matchedStudentName": "Jyotirmoy Mondal",
+    "csvPhone": "918240664535",
+    "distance": 8,
+    "matchedStudentId": "69c695cc68169c9f7b6bfb9f",
+    "matchedStudentPhone": "9163650976"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Kausar Jain 12 2026",
+    "extractedName": "kausar jain 12 2026",
+    "matchedStudentName": "Kausar Jain",
+    "csvPhone": "919903722875",
+    "distance": 8,
+    "matchedStudentId": "69c1037b00c61fd42754222a",
+    "matchedStudentPhone": "8240512332"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Manami Saha 11 2026",
+    "extractedName": "manami saha 11 2026",
+    "matchedStudentName": "Manami Saha",
+    "csvPhone": "919564296833",
+    "distance": 8,
+    "matchedStudentId": "6a79c1d257a8d3fd7136501f",
+    "matchedStudentPhone": "9832073822"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Meghna Bhowmick 11 2026",
+    "extractedName": "meghna bhowmick 11 2026",
+    "matchedStudentName": "Meghna Bhowmick",
+    "csvPhone": "919903969082",
+    "distance": 8,
+    "matchedStudentId": "69ce8d9ae3a580163d889d7b",
+    "matchedStudentPhone": "7003992901"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Nairit Adak 11 2026",
+    "extractedName": "nairit adak 11 2026",
+    "matchedStudentName": "Nairit Adak",
+    "csvPhone": "919163720001",
+    "distance": 8,
+    "matchedStudentId": "69f0d03784e430316cb11f1e",
+    "matchedStudentPhone": "9007967922"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Niharika Majumder 11 2026",
+    "extractedName": "niharika majumder 11 2026",
+    "matchedStudentName": "Niharika Majumder",
+    "csvPhone": "919831740051",
+    "distance": 8,
+    "matchedStudentId": "6a2121e90aff7acdf1b7b209",
+    "matchedStudentPhone": "9831740051"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Nilanjan Chakraborty 11 2026",
+    "extractedName": "nilanjan chakraborty 11 2026",
+    "matchedStudentName": "Nilanjan Chakraborty",
+    "csvPhone": "917003120294",
+    "distance": 8,
+    "matchedStudentId": "6a68b63a8f3339ff09f49f1c",
+    "matchedStudentPhone": "8583867427"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Parnavo Majumder 11 2026",
+    "extractedName": "parnavo majumder 11 2026",
+    "matchedStudentName": "Parnavo Majumder",
+    "csvPhone": "918583964025",
+    "distance": 8,
+    "matchedStudentId": "69cffe2e53a629892363dafd",
+    "matchedStudentPhone": "8478899560"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Pragya Kundu 11 2026",
+    "extractedName": "pragya kundu 11 2026",
+    "matchedStudentName": "Pragya Kundu",
+    "csvPhone": "919831323423",
+    "distance": 8,
+    "matchedStudentId": "69b98fc980b2aa16ea2ba713",
+    "matchedStudentPhone": "9903771952"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Prantik Sadhukan 12 2026",
+    "extractedName": "prantik sadhukan 12 2026",
+    "matchedStudentName": "Prantik Sadhukan",
+    "csvPhone": "919874972358",
+    "distance": 8,
+    "matchedStudentId": "698ee7132c38b8866d361248",
+    "matchedStudentPhone": "9748852697"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Premankur Jana 12 2026",
+    "extractedName": "premankur jana 12 2026",
+    "matchedStudentName": "Premankur Jana",
+    "csvPhone": "918910062083",
+    "distance": 8,
+    "matchedStudentId": "69a98038c4047c17b273b449",
+    "matchedStudentPhone": "7439344950"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Priyam Biswas 11 2026",
+    "extractedName": "priyam biswas 11 2026",
+    "matchedStudentName": "Priyam Biswas",
+    "csvPhone": "918583821178",
+    "distance": 8,
+    "matchedStudentId": "69f733145ba18e3d74983d6e",
+    "matchedStudentPhone": "6291925886"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Rajanya Banerjee 12 2026",
+    "extractedName": "rajanya banerjee 12 2026",
+    "matchedStudentName": "Rajanya Banerjee",
+    "csvPhone": "918961583604",
+    "distance": 8,
+    "matchedStudentId": "699dc8c923062405b2459b25",
+    "matchedStudentPhone": "8017176495"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Ram Ritam Chowdhury 11 2026",
+    "extractedName": "ram ritam chowdhury 11 2026",
+    "matchedStudentName": "Ram Ritam Chowdhury",
+    "csvPhone": "919874049749",
+    "distance": 8,
+    "matchedStudentId": "6aa2271f4ffb069c19c47ef9",
+    "matchedStudentPhone": "7003449315"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Reyansh Mukherjee Saha 11 2026",
+    "extractedName": "reyansh mukherjee saha 11 2026",
+    "matchedStudentName": "Reyansh Mukherjee Saha",
+    "csvPhone": "919831400606",
+    "distance": 8,
+    "matchedStudentId": "69d6440fd04c033761548b0b",
+    "matchedStudentPhone": "9874537753"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Rishta Jha 11 2026",
+    "extractedName": "rishta jha 11 2026",
+    "matchedStudentName": "Rishta Jha",
+    "csvPhone": "918981570082",
+    "distance": 8,
+    "matchedStudentId": "69ef69b082094d2c055199dd",
+    "matchedStudentPhone": "8100308723"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Rupam Mukherjee 12 2026",
+    "extractedName": "rupam mukherjee 12 2026",
+    "matchedStudentName": "Rupam Mukherjee",
+    "csvPhone": "916291458887",
+    "distance": 8,
+    "matchedStudentId": "69c3f9be6142b3a2521539e9",
+    "matchedStudentPhone": "7439153780"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Saaranya Chatterjee 11 2026",
+    "extractedName": "saaranya chatterjee 11 2026",
+    "matchedStudentName": "Saaranyaa Chatterjee",
+    "csvPhone": "919432671976",
+    "distance": 9,
+    "matchedStudentId": "69cbbcfb5724c17f563c6682",
+    "matchedStudentPhone": "6290424561"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Saheli Karmakar 12 2026",
+    "extractedName": "saheli karmakar 12 2026",
+    "matchedStudentName": "Saheli Karmakar",
+    "csvPhone": "919432075553",
+    "distance": 8,
+    "matchedStudentId": "699eb0e019893584201976b5",
+    "matchedStudentPhone": "7439330525"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Satwata Mukherjee 11 2026",
+    "extractedName": "satwata mukherjee 11 2026",
+    "matchedStudentName": "Satwata Mukhejee",
+    "csvPhone": "917059607074",
+    "distance": 9,
+    "matchedStudentId": "69cc89095b8b5eed70003ecd",
+    "matchedStudentPhone": "8240449203"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Sayam Sandip Dhara 12 2026",
+    "extractedName": "sayam sandip dhara 12 2026",
+    "matchedStudentName": "Sayam Sandip Dhara",
+    "csvPhone": "917044226006",
+    "distance": 8,
+    "matchedStudentId": "69aa76cdba4d679b12a98a69",
+    "matchedStudentPhone": "9123649834"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Sayan Das 11 2026",
+    "extractedName": "sayan das 11 2026",
+    "matchedStudentName": "Sayan Das",
+    "csvPhone": "919830120566",
+    "distance": 8,
+    "matchedStudentId": "69d907164544542bee234fac",
+    "matchedStudentPhone": "8420992061"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Shreyashi Das 11 2026",
+    "extractedName": "shreyashi das 11 2026",
+    "matchedStudentName": "Shreyashi Das",
+    "csvPhone": "918240303025",
+    "distance": 8,
+    "matchedStudentId": "6a4dfbf3e8d2c6e3864fe272",
+    "matchedStudentPhone": "8017340343"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Shuvosree Datta 11 2026",
+    "extractedName": "shuvosree datta 11 2026",
+    "matchedStudentName": "Shuvosree Datta",
+    "csvPhone": "919830479508",
+    "distance": 8,
+    "matchedStudentId": "69b162dda149e8bec829ae45",
+    "matchedStudentPhone": "8910480115"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Snigdha Biswas 12 2026",
+    "extractedName": "snigdha biswas 12 2026",
+    "matchedStudentName": "Snigdha Biswas",
+    "csvPhone": "917980249861",
+    "distance": 8,
+    "matchedStudentId": "6a40ae3dbd304c1286d705ad",
+    "matchedStudentPhone": "9073249828"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Soham Biswas 11 2026",
+    "extractedName": "soham biswas 11 2026",
+    "matchedStudentName": "Soham Biswas",
+    "csvPhone": "919874812061",
+    "distance": 8,
+    "matchedStudentId": "69cbcf5472a5d102d139b121",
+    "matchedStudentPhone": "9836195086"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Soumik Sen 12 2026",
+    "extractedName": "soumik sen 12 2026",
+    "matchedStudentName": "Soumik Sen",
+    "csvPhone": "919874575226",
+    "distance": 8,
+    "matchedStudentId": "6a068ff41d29cfd675d923e1",
+    "matchedStudentPhone": "8240412985"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Soumita Saha 11 2026",
+    "extractedName": "soumita saha 11 2026",
+    "matchedStudentName": "Soumita Saha",
+    "csvPhone": "919831982767",
+    "distance": 8,
+    "matchedStudentId": "69b16260a149e8bec829ad6b",
+    "matchedStudentPhone": "9123605023"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Sounavo Roy 11 2026",
+    "extractedName": "sounavo roy 11 2026",
+    "matchedStudentName": "Sounavo Roy",
+    "csvPhone": "917044070058",
+    "distance": 8,
+    "matchedStudentId": "69fdadabb9cb6e0929b3ffd1",
+    "matchedStudentPhone": "9163429688"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Srestha Maity 11 2026",
+    "extractedName": "srestha maity 11 2026",
+    "matchedStudentName": "Srestha Maity",
+    "csvPhone": "916291046385",
+    "distance": 8,
+    "matchedStudentId": "69d8ccf94717662a5d79bbee",
+    "matchedStudentPhone": "8697625350"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "Gr. Sreyasi Roy 12 2026",
+    "extractedName": "sreyasi roy 12 2026",
+    "matchedStudentName": "Sreyashi Roy",
+    "csvPhone": "918697782055",
+    "distance": 9,
+    "matchedStudentId": "698ee7172c38b8866d36129e",
+    "matchedStudentPhone": "9830658354"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Srijita Ghosh 11 2026",
+    "extractedName": "srijita ghosh 11 2026",
+    "matchedStudentName": "Srijita Ghosh",
+    "csvPhone": "919433175289",
+    "distance": 8,
+    "matchedStudentId": "6a51127427535a60c2211f55",
+    "matchedStudentPhone": "7003989194"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Srijita Panja 11 2026",
+    "extractedName": "srijita panja 11 2026",
+    "matchedStudentName": "Srijita Panja",
+    "csvPhone": "918240542366",
+    "distance": 8,
+    "matchedStudentId": "6a4e6a29f9a0289f2f4a5f76",
+    "matchedStudentPhone": "6291544741"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Subhayu Roy 11 2026",
+    "extractedName": "subhayu roy 11 2026",
+    "matchedStudentName": "Subhayu Roy",
+    "csvPhone": "918017798820",
+    "distance": 8,
+    "matchedStudentId": "69aacb6c0032e160f8b7e89d",
+    "matchedStudentPhone": "9073267768"
+  },
+
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Sumalya Choudhury 12 2026",
+    "extractedName": "sumalya choudhury 12 2026",
+    "matchedStudentName": "Sumalya Chowdhury",
+    "csvPhone": "918777639918",
+    "distance": 9,
+    "matchedStudentId": "698ee7162c38b8866d361281",
+    "matchedStudentPhone": "9831361579"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Suravi Jaiswara 11 2026",
+    "extractedName": "suravi jaiswara 11 2026",
+    "matchedStudentName": "Suravi Jaiswara",
+    "csvPhone": "919477015883",
+    "distance": 8,
+    "matchedStudentId": "69c3ecce35fd943b097b5652",
+    "matchedStudentPhone": "7439450262"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Suvapratim Maity 12 2026",
+    "extractedName": "suvapratim maity 12 2026",
+    "matchedStudentName": "Shuvrapratim Maity",
+    "csvPhone": "918583033552",
+    "distance": 10,
+    "matchedStudentId": "698ee7162c38b8866d361287",
+    "matchedStudentPhone": ""
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Suvranil Pyne 11 2026",
+    "extractedName": "suvranil pyne 11 2026",
+    "matchedStudentName": "Suvranil Pyne",
+    "csvPhone": "919038818354",
+    "distance": 8,
+    "matchedStudentId": "6a453be8b849c719ee82b7f0",
+    "matchedStudentPhone": "6289889737"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Suvroneel Das 11 2025",
+    "extractedName": "suvroneel das 11 2025",
+    "matchedStudentName": "Suvroneel Das",
+    "csvPhone": "917003601772",
+    "distance": 8,
+    "matchedStudentId": "698ee7162c38b8866d361282",
+    "matchedStudentPhone": "8902907084"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Swarnava Sardar 12 2026",
+    "extractedName": "swarnava sardar 12 2026",
+    "matchedStudentName": "Swarnava Sardar",
+    "csvPhone": "917003290538",
+    "distance": 8,
+    "matchedStudentId": "69dbaedb26854bb9181b9d82",
+    "matchedStudentPhone": "8420364604"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Swastik Chatterjee 12 2026",
+    "extractedName": "swastik chatterjee 12 2026",
+    "matchedStudentName": "Swastik Chatterjee",
+    "csvPhone": "919836890991",
+    "distance": 8,
+    "matchedStudentId": "699eb0711989358420197694",
+    "matchedStudentPhone": "9432110143"
+  },
+  {
+    "status": "POOR_MATCH",
+    "csvName": "GR. Toshani Sen 11 2026",
+    "extractedName": "toshani sen 11 2026",
+    "matchedStudentName": "Toshani Sen",
+    "csvPhone": "916291431577",
+    "distance": 8,
+    "matchedStudentId": "6a0a00b63e93603ba3701270",
+    "matchedStudentPhone": "9123731246"
+  }
+]
