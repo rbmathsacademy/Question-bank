@@ -115,7 +115,7 @@ export default function MonitorTestPage() {
 
         if (type === 'missed') {
             targets = notStarted;
-            messageFn = (fName) => `This is to inform you that ${fName} was absent in the class today. I have not been infomed about his absence, please make sure ${fName} is not missing the class unecessarily.\n*_RB Sir (Maths)_*`;
+            messageFn = (fName) => `This is to inform you that ${fName} was absent in the class today. I have not been informed about ${fName}'s absence, please make sure ${fName} is not missing the class unnecessarily.\n*_RB Sir (Maths)_*`;
         } else if (type === 'zero_submitted') {
             targets = completed.filter(s => s.score === 0 && s.hasSubmittedLatestAssignment);
             messageFn = (fName) => `This is to inform you that ${fName} has scored 0 in today's class test although the same questions are solved in ${fName}'s submitted assignment. This means the assignment answers are simply copied from somewhere (internet/friend). Please take care of this situation.\n*_RB Sir (Maths)_*`;
