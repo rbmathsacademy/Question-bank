@@ -107,42 +107,80 @@ export default function MonitorTestPage() {
         toast.success(`Copied ${actualPhones.length} number(s)! Open WhatsApp Web and press F9`);
     };
 
-    const [showCustomWAModal, setShowCustomWAModal] = useState(false);
+    const [recentAssignments, setRecentAssignments] = useState<any[]>([]);
+    const [referenceAssignmentId, setReferenceAssignmentId] = useState<string>('');
 
-    const handleCustomWACopy = (type: 'missed' | 'zero_submitted' | 'zero_unsubmitted') => {
+    const defaultWAMessages = {
+        missed: `This is to inform you that [NAME] was absent in the class today. I have not been informed about [NAME]'s absence, please make sure [NAME] is not missing the class unnecessarily.
+*_RB Sir (Maths)_*`,
+        zero_submitted: `This is to inform you that [NAME] has scored 0 in today's class test although the same questions are solved in [NAME]'s submitted assignment. This means the assignment answers are simply copied from somewhere (internet/friend). Please take care of this situation.
+*_RB Sir (Maths)_*`,
+        zero_unsubmitted: `This is to inform you that [NAME] has scored 0 in today's class test and also did not submit the assignment on this topic even after reminders. Please take care of this situation.
+*_RB Sir (Maths)_*`
+    };
+
+    const [showCustomWAModal, setShowCustomWAModal] = useState(false);
+    const [waMsgMissed, setWaMsgMissed] = useState(defaultWAMessages.missed);
+    const [waMsgZeroSub, setWaMsgZeroSub] = useState(defaultWAMessages.zero_submitted);
+    const [waMsgZeroUnsub, setWaMsgZeroUnsub] = useState(defaultWAMessages.zero_unsubmitted);
+    const [waSelectedMissed, setWaSelectedMissed] = useState<Set<string>>(new Set());
+    const [waSelectedZeroSub, setWaSelectedZeroSub] = useState<Set<string>>(new Set());
+    const [waSelectedZeroUnsub, setWaSelectedZeroUnsub] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        if (showCustomWAModal) {
+            setWaSelectedMissed(new Set(notStarted.map(s => s.phone)));
+            if (referenceAssignmentId) {
+                setWaSelectedZeroSub(new Set(completed.filter(s => s.score === 0 && s.submittedAssignments?.includes(referenceAssignmentId)).map(s => s.phone)));
+                setWaSelectedZeroUnsub(new Set(completed.filter(s => s.score === 0 && !s.submittedAssignments?.includes(referenceAssignmentId)).map(s => s.phone)));
+            } else {
+                setWaSelectedZeroSub(new Set());
+                setWaSelectedZeroUnsub(new Set());
+            }
+        }
+    }, [showCustomWAModal, notStarted, completed, referenceAssignmentId]);
+
+    const handleNewCustomWACopy = (type: 'missed' | 'zero_submitted' | 'zero_unsubmitted') => {
         let targets: any[] = [];
-        let messageFn: (firstName: string) => string;
+        let messageTemplate = '';
+        let selectedSet: Set<string> = new Set();
 
         if (type === 'missed') {
             targets = notStarted;
-            messageFn = (fName) => `This is to inform you that ${fName} was absent in the class today. I have not been informed about ${fName}'s absence, please make sure ${fName} is not missing the class unnecessarily.\n*_RB Sir (Maths)_*`;
+            messageTemplate = waMsgMissed;
+            selectedSet = waSelectedMissed;
         } else if (type === 'zero_submitted') {
             if (!referenceAssignmentId) return toast.error('Please select a reference assignment first.');
             targets = completed.filter(s => s.score === 0 && s.submittedAssignments?.includes(referenceAssignmentId));
-            messageFn = (fName) => `This is to inform you that ${fName} has scored 0 in today's class test although the same questions are solved in ${fName}'s submitted assignment. This means the assignment answers are simply copied from somewhere (internet/friend). Please take care of this situation.\n*_RB Sir (Maths)_*`;
+            messageTemplate = waMsgZeroSub;
+            selectedSet = waSelectedZeroSub;
         } else if (type === 'zero_unsubmitted') {
             if (!referenceAssignmentId) return toast.error('Please select a reference assignment first.');
             targets = completed.filter(s => s.score === 0 && !s.submittedAssignments?.includes(referenceAssignmentId));
-            messageFn = (fName) => `This is to inform you that ${fName} has scored 0 in today's class test and also did not submit the assignment on this topic even after reminders. Please take care of this situation.\n*_RB Sir (Maths)_*`;
+            messageTemplate = waMsgZeroUnsub;
+            selectedSet = waSelectedZeroUnsub;
         }
 
-        if (targets.length === 0) {
-            return toast.error('No students found for this scenario.');
+        const selectedTargets = targets.filter(s => selectedSet.has(s.phone));
+
+        if (selectedTargets.length === 0) {
+            return toast.error('No students selected for this scenario.');
         }
 
-        const missingPhones = targets.filter(s => !s.guardianPhone).map(s => s.name);
+        const missingPhones = selectedTargets.filter(s => !s.guardianPhone).map(s => s.name);
         if (missingPhones.length > 0) {
             toast.error(`Missing Guardian Phone for: ${missingPhones.join(', ')}`, { duration: 6000 });
         }
 
-        const validTargets = targets.filter(s => s.guardianPhone);
+        const validTargets = selectedTargets.filter(s => s.guardianPhone);
         if (validTargets.length === 0) {
-            return toast.error('No valid guardian phone numbers found.');
+            return toast.error('No valid guardian phone numbers found in selection.');
         }
 
         const dynamicParts = validTargets.map(s => {
             const fName = s.name.split(' ')[0];
-            return `${s.guardianPhone}~~~${messageFn(fName)}`;
+            const personalizedMsg = messageTemplate.replace(/\[NAME\]/g, fName);
+            return `${s.guardianPhone}~~~${personalizedMsg}`;
         });
 
         const dataStr = `WHATSAPP_DYNAMIC|||${dynamicParts.join('|||')}`;
@@ -151,8 +189,6 @@ export default function MonitorTestPage() {
         setShowCustomWAModal(false);
     };
 
-    const [recentAssignments, setRecentAssignments] = useState<any[]>([]);
-    const [referenceAssignmentId, setReferenceAssignmentId] = useState<string>('');
 
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
@@ -361,6 +397,89 @@ export default function MonitorTestPage() {
         }
     };
 
+    const missedTargets = notStarted;
+    const zeroSubTargets = referenceAssignmentId ? completed.filter(s => s.score === 0 && s.submittedAssignments?.includes(referenceAssignmentId)) : [];
+    const zeroUnsubTargets = referenceAssignmentId ? completed.filter(s => s.score === 0 && !s.submittedAssignments?.includes(referenceAssignmentId)) : [];
+
+    const renderWAColumn = (
+        title: string,
+        targets: any[],
+        selectedSet: Set<string>,
+        setSelectedSet: React.Dispatch<React.SetStateAction<Set<string>>>,
+        message: string,
+        setMessage: React.Dispatch<React.SetStateAction<string>>,
+        type: 'missed' | 'zero_submitted' | 'zero_unsubmitted'
+    ) => {
+        const handleSelectAll = () => {
+            if (selectedSet.size === targets.length) {
+                setSelectedSet(new Set());
+            } else {
+                setSelectedSet(new Set(targets.map(s => s.phone)));
+            }
+        };
+
+        const handleSelect = (phone: string) => {
+            const next = new Set(selectedSet);
+            if (next.has(phone)) next.delete(phone);
+            else next.add(phone);
+            setSelectedSet(next);
+        };
+
+        return (
+            <div className="flex flex-col bg-slate-800/50 rounded-xl border border-white/10 p-4 h-full">
+                <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-sm font-bold text-white">{title} ({targets.length})</h3>
+                    <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                        <input 
+                            type="checkbox" 
+                            checked={targets.length > 0 && selectedSet.size === targets.length} 
+                            onChange={handleSelectAll} 
+                            className="rounded border-white/20 bg-slate-900 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-slate-900"
+                        />
+                        Select All
+                    </label>
+                </div>
+                
+                <div className="flex-1 min-h-[150px] max-h-[250px] overflow-y-auto custom-scrollbar bg-slate-900/50 rounded-lg p-2 mb-4 border border-white/5 space-y-1">
+                    {targets.length === 0 ? (
+                        <div className="text-xs text-slate-500 text-center py-4">No students found</div>
+                    ) : (
+                        targets.map(s => (
+                            <label key={s.phone} className="flex items-center gap-2.5 p-2 rounded hover:bg-slate-800 cursor-pointer transition-colors">
+                                <input 
+                                    type="checkbox" 
+                                    checked={selectedSet.has(s.phone)} 
+                                    onChange={() => handleSelect(s.phone)} 
+                                    className="rounded border-white/20 bg-slate-900 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-slate-900"
+                                />
+                                <div>
+                                    <div className="text-xs font-medium text-white">{s.name}</div>
+                                    <div className="text-[10px] text-slate-500">{s.phone}</div>
+                                </div>
+                            </label>
+                        ))
+                    )}
+                </div>
+                
+                <div className="mb-4">
+                    <label className="block text-xs text-slate-400 font-semibold mb-1.5">Message Template (use [NAME])</label>
+                    <textarea 
+                        value={message} 
+                        onChange={e => setMessage(e.target.value)} 
+                        className="w-full px-3 py-2 bg-slate-900 border border-white/10 rounded-lg text-white text-xs focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none resize-none h-32"
+                    />
+                </div>
+                
+                <button
+                    onClick={() => handleNewCustomWACopy(type)}
+                    className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold transition-all flex justify-center items-center gap-2"
+                >
+                    <MessageSquare className="w-4 h-4" /> Copy Messages
+                </button>
+            </div>
+        );
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
             <Toaster position="top-right" />
@@ -433,71 +552,44 @@ export default function MonitorTestPage() {
             {/* Custom WhatsApp Modal */}
             {showCustomWAModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-                    <div className="bg-[#0f172a] border border-white/10 rounded-2xl w-full max-w-lg p-6 shadow-2xl animate-in zoom-in duration-200">
-                        <div className="flex justify-between items-center mb-4">
+                    <div className="bg-[#0f172a] border border-white/10 rounded-2xl w-full max-w-6xl p-6 shadow-2xl animate-in zoom-in duration-200 max-h-[90vh] flex flex-col">
+                        <div className="flex justify-between items-center mb-4 shrink-0">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 rounded-lg bg-emerald-500/20">
                                     <MessageSquare className="w-5 h-5 text-emerald-400" />
                                 </div>
-                                <h2 className="text-lg font-bold text-white">Custom WhatsApp Sender</h2>
+                                <h2 className="text-lg font-bold text-white">Custom Guardian WhatsApp Sender</h2>
                             </div>
                             <button onClick={() => setShowCustomWAModal(false)} className="text-slate-400 hover:text-white transition-colors">
                                 <X className="h-5 w-5" />
                             </button>
                         </div>
-
-                        <p className="text-slate-400 text-sm mb-4">
-                            Select a scenario below to generate customized WhatsApp messages for guardians. The system will automatically insert each student's first name into the template.
-                        </p>
-
-                        {recentAssignments.length > 0 && (
-                            <div className="mb-6">
-                                <label className="block text-xs text-slate-400 font-semibold mb-1.5">Reference Assignment</label>
-                                <select
-                                    value={referenceAssignmentId}
-                                    onChange={(e) => setReferenceAssignmentId(e.target.value)}
-                                    className="w-full px-3 py-2 bg-slate-800 border border-white/10 rounded-lg text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
-                                >
-                                    {recentAssignments.map(a => (
-                                        <option key={a._id} value={a._id}>{a.title} ({a.batch}) - {new Date(a.createdAt).toLocaleDateString()}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-
-                        <div className="space-y-3 mb-6">
-                            <button
-                                onClick={() => handleCustomWACopy('missed')}
-                                className="w-full p-4 rounded-xl border border-white/10 bg-slate-800/50 hover:bg-slate-800 transition-colors text-left flex items-start gap-4"
-                            >
-                                <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 shrink-0">1</div>
+                        
+                        <div className="shrink-0 mb-6">
+                            {recentAssignments.length > 0 ? (
                                 <div>
-                                    <h3 className="text-sm font-bold text-white mb-1">Missed Test ({notStarted.length})</h3>
-                                    <p className="text-xs text-slate-400">Notifies guardian that the student was absent for the test without prior information.</p>
+                                    <label className="block text-xs text-slate-400 font-semibold mb-1.5">Reference Assignment</label>
+                                    <select
+                                        value={referenceAssignmentId}
+                                        onChange={(e) => setReferenceAssignmentId(e.target.value)}
+                                        className="w-full max-w-md px-3 py-2 bg-slate-800 border border-white/10 rounded-lg text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                                    >
+                                        {recentAssignments.map(a => (
+                                            <option key={a._id} value={a._id}>{a.title} ({a.batch}) - {new Date(a.createdAt).toLocaleDateString()}</option>
+                                        ))}
+                                    </select>
                                 </div>
-                            </button>
+                            ) : (
+                                <div className="text-sm text-amber-400 bg-amber-400/10 p-3 rounded-lg border border-amber-400/20">
+                                    No recent assignments found. "Scored 0" options require a reference assignment.
+                                </div>
+                            )}
+                        </div>
 
-                            <button
-                                onClick={() => handleCustomWACopy('zero_submitted')}
-                                className="w-full p-4 rounded-xl border border-white/10 bg-slate-800/50 hover:bg-slate-800 transition-colors text-left flex items-start gap-4"
-                            >
-                                <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 shrink-0">2</div>
-                                <div>
-                                    <h3 className="text-sm font-bold text-white mb-1">Scored 0 & Submitted Assignment ({referenceAssignmentId ? completed.filter(s => s.score === 0 && s.submittedAssignments?.includes(referenceAssignmentId)).length : 0})</h3>
-                                    <p className="text-xs text-slate-400">Notifies guardian that the student copied the assignment, since they scored 0 on identical test questions.</p>
-                                </div>
-                            </button>
-
-                            <button
-                                onClick={() => handleCustomWACopy('zero_unsubmitted')}
-                                className="w-full p-4 rounded-xl border border-white/10 bg-slate-800/50 hover:bg-slate-800 transition-colors text-left flex items-start gap-4"
-                            >
-                                <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 shrink-0">3</div>
-                                <div>
-                                    <h3 className="text-sm font-bold text-white mb-1">Scored 0 & Missed Assignment ({referenceAssignmentId ? completed.filter(s => s.score === 0 && !s.submittedAssignments?.includes(referenceAssignmentId)).length : 0})</h3>
-                                    <p className="text-xs text-slate-400">Notifies guardian that the student scored 0 and also failed to submit the assignment despite reminders.</p>
-                                </div>
-                            </button>
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0 overflow-y-auto pb-4 custom-scrollbar">
+                            {renderWAColumn('Missed Test', missedTargets, waSelectedMissed, setWaSelectedMissed, waMsgMissed, setWaMsgMissed, 'missed')}
+                            {renderWAColumn('Scored 0 & Submitted', zeroSubTargets, waSelectedZeroSub, setWaSelectedZeroSub, waMsgZeroSub, setWaMsgZeroSub, 'zero_submitted')}
+                            {renderWAColumn('Scored 0 & Missed', zeroUnsubTargets, waSelectedZeroUnsub, setWaSelectedZeroUnsub, waMsgZeroUnsub, setWaMsgZeroUnsub, 'zero_unsubmitted')}
                         </div>
                     </div>
                 </div>
