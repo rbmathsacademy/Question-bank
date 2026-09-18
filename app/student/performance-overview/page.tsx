@@ -156,6 +156,9 @@ export default function PerformanceOverviewPage() {
                                                 <p className="text-lg font-black text-white">{exam.priorAssignmentScore > 0 ? `${exam.priorAssignmentScore}%` : 'N/A'}</p>
                                             </div>
                                         </div>
+                                        <p className="text-[10px] text-slate-500 mt-3 text-center italic">
+                                            * These marks are generated based on the tests you appeared before your school exam date.
+                                        </p>
                                     </div>
 
                                     {/* 4. Insight */}
@@ -193,6 +196,14 @@ export default function PerformanceOverviewPage() {
                         })
                     )}
                 </div>
+                
+                {schoolExams.length > 0 && (
+                    <div className="mt-8 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-5 text-center max-w-3xl mx-auto">
+                        <p className="text-xs text-indigo-200/60 leading-relaxed font-medium">
+                            Note: The system average is calculated for all the online, offline tests, and the assignments the student has submitted before the exam date. The average is calculated by taking 35% of online test + 60% offline test and 5% of assignment rating.
+                        </p>
+                    </div>
+                )}
             </main>
         </div>
     );
