@@ -1,306 +1,313 @@
-
-import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
-import BatchStudent from '@/models/BatchStudent';
-import OnlineTest from '@/models/OnlineTest';
-import Assignment from '@/models/Assignment';
-import StudentTestAttempt from '@/models/StudentTestAttempt';
-import AssignmentSubmission from '@/models/AssignmentSubmission';
-import OfflineExam from '@/models/OfflineExam';
-
-export const dynamic = 'force-dynamic';
-
-export async function GET(request: NextRequest) {
-    try {
-        const { searchParams } = new URL(request.url);
-
-        const batch = searchParams.get('batch');
-
-        if (!batch) {
-            return NextResponse.json({ error: 'Batch is required' }, { status: 400 });
-        }
-
-        await dbConnect();
-
-        // 1. Fetch Students in Batch with createdAt
-        const students = await BatchStudent.find({ courses: batch })
-            .select('name phoneNumber createdAt schoolName board')
-            .lean();
-
-        if (!students.length) {
-            return NextResponse.json({
-                students: [],
-                tests: [],
-                assignments: [],
-                analytics: []
-            });
-        }
-
-        const studentPhones = students.map(s => s.phoneNumber);
-        const studentIds = students.map(s => s._id);
-
-        // 2. Fetch Online Tests for Batch
-        const tests = await OnlineTest.find({
-            'deployment.batches': batch,
-            status: { $in: ['deployed', 'completed'] }
-        })
-            .select('title totalMarks deployment.startTime excludedStudents')
-            .sort({ 'deployment.startTime': -1 })
-            .lean();
-
-        const testIds = tests.map(t => t._id);
-
-        // 3. Fetch Assignments for Batch
-        const assignments = await Assignment.find({ batch })
-            .select('title deadline createdAt excludedStudents')
-            .sort({ deadline: -1 })
-            .lean();
-
-        const assignmentIds = assignments.map(a => a._id);
-
-        // 3b. Fetch Offline Exams for Batch
-        const offlineExams = await OfflineExam.find({ batch })
-            .sort({ testDate: -1 })
-            .lean();
-
-        // 4. Fetch Student Attempts for these Tests
-        const attempts = await StudentTestAttempt.find({
-            testId: { $in: testIds },
-            // We want ALL attempts for these tests to calculate highest score, not just for this batch's students (if tests are shared)
-            // But usually highest score is per batch? 
-            // "Highest marks vertical bar graphs for all the tests that the student has appeared in"
-            // usually compares against the batch highest.
-            studentPhone: { $in: studentPhones }
-        })
-            .select('testId studentPhone score percentage status submittedAt')
-            .lean();
-
-        // Calculate Highest Score and Average Score for each test (within this batch)
-        const testStats: Record<string, { highest: number; totalScore: number; count: number }> = {};
-        attempts.forEach((attempt: any) => {
-            const tid = attempt.testId.toString();
-            if (attempt.score !== undefined && attempt.score !== null) {
-                if (!testStats[tid]) {
-                    testStats[tid] = { highest: 0, totalScore: 0, count: 0 };
-                }
-
-                if (attempt.score > testStats[tid].highest) {
-                    testStats[tid].highest = attempt.score;
-                }
-                testStats[tid].totalScore += attempt.score;
-                testStats[tid].count += 1;
-            }
-        });
-
-        // 5. Fetch Assignment Submissions
-        const submissions = await AssignmentSubmission.find({
-            assignment: { $in: assignmentIds },
-            student: { $in: studentIds }
-        })
-            .select('assignment student status isLate submittedAt quality overrideOnTime')
-            .lean();
-
-        // 6. Aggregate Data per Student
-        const analytics = students.map((student: any) => {
-            const studentCreatedAt = new Date(student.createdAt);
-
-            // Test Analytics — filter out tests where this student is excluded
+
+import { NextRequest, NextResponse } from 'next/server';
+import dbConnect from '@/lib/db';
+import BatchStudent from '@/models/BatchStudent';
+import OnlineTest from '@/models/OnlineTest';
+import Assignment from '@/models/Assignment';
+import StudentTestAttempt from '@/models/StudentTestAttempt';
+import AssignmentSubmission from '@/models/AssignmentSubmission';
+import OfflineExam from '@/models/OfflineExam';
+
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: NextRequest) {
+    try {
+        const { searchParams } = new URL(request.url);
+
+        const batch = searchParams.get('batch');
+
+        if (!batch) {
+            return NextResponse.json({ error: 'Batch is required' }, { status: 400 });
+        }
+
+        await dbConnect();
+
+        // 1. Fetch Students in Batch with createdAt
+        const students = await BatchStudent.find({ courses: batch })
+            .select('name phoneNumber createdAt schoolName board')
+            .lean();
+
+        if (!students.length) {
+            return NextResponse.json({
+                students: [],
+                tests: [],
+                assignments: [],
+                analytics: []
+            });
+        }
+
+        const studentPhones = students.map(s => s.phoneNumber);
+        const studentIds = students.map(s => s._id);
+
+        // 2. Fetch Online Tests for Batch
+        const tests = await OnlineTest.find({
+            'deployment.batches': batch,
+            status: { $in: ['deployed', 'completed'] }
+        })
+            .select('title totalMarks deployment.startTime deployment.students excludedStudents')
+            .sort({ 'deployment.startTime': -1 })
+            .lean();
+
+        const testIds = tests.map(t => t._id);
+
+        // 3. Fetch Assignments for Batch
+        const assignments = await Assignment.find({ batch })
+            .select('title deadline createdAt excludedStudents')
+            .sort({ deadline: -1 })
+            .lean();
+
+        const assignmentIds = assignments.map(a => a._id);
+
+        // 3b. Fetch Offline Exams for Batch
+        const offlineExams = await OfflineExam.find({ batch })
+            .sort({ testDate: -1 })
+            .lean();
+
+        // 4. Fetch Student Attempts for these Tests
+        const attempts = await StudentTestAttempt.find({
+            testId: { $in: testIds },
+            // We want ALL attempts for these tests to calculate highest score, not just for this batch's students (if tests are shared)
+            // But usually highest score is per batch? 
+            // "Highest marks vertical bar graphs for all the tests that the student has appeared in"
+            // usually compares against the batch highest.
+            studentPhone: { $in: studentPhones }
+        })
+            .select('testId studentPhone score percentage status submittedAt')
+            .lean();
+
+        // Calculate Highest Score and Average Score for each test (within this batch)
+        const testStats: Record<string, { highest: number; totalScore: number; count: number }> = {};
+        attempts.forEach((attempt: any) => {
+            const tid = attempt.testId.toString();
+            if (attempt.score !== undefined && attempt.score !== null) {
+                if (!testStats[tid]) {
+                    testStats[tid] = { highest: 0, totalScore: 0, count: 0 };
+                }
+
+                if (attempt.score > testStats[tid].highest) {
+                    testStats[tid].highest = attempt.score;
+                }
+                testStats[tid].totalScore += attempt.score;
+                testStats[tid].count += 1;
+            }
+        });
+
+        // 5. Fetch Assignment Submissions
+        const submissions = await AssignmentSubmission.find({
+            assignment: { $in: assignmentIds },
+            student: { $in: studentIds }
+        })
+            .select('assignment student status isLate submittedAt quality overrideOnTime')
+            .lean();
+
+        // 6. Aggregate Data per Student
+        const analytics = students.map((student: any) => {
+            const studentCreatedAt = new Date(student.createdAt);
+
+            // Test Analytics — filter out tests where this student is excluded
             const studentAttempts = attempts.filter((a: any) => a.studentPhone === student.phoneNumber);
             const studentTests = tests.filter((t: any) => {
                 const excluded: string[] = (t as any).excludedStudents || [];
-                return !excluded.includes(student.phoneNumber);
-            });
-
-            const testScores = studentTests.map((test: any) => {
-                const attempt = studentAttempts.find((a: any) => a.testId.toString() === test._id.toString());
-                const testStartDate = new Date(test.deployment.startTime);
-
-                // Determine Status:
-                // - Completed/In Progress -> from attempt
-                // - Not Attempted -> 
-                //      - If joined AFTER test start -> 'not_enrolled' (ignore for missed count)
-                //      - If joined BEFORE test start -> 'missed'
-                let status = 'not_attempted';
-                if (attempt) {
-                    status = attempt.status;
-                } else {
-                    // Check enrollment date
-                    // detailed check: if test started BEFORE student was created, they couldn't take it.
-                    if (studentCreatedAt > testStartDate) {
-                        status = 'not_enrolled';
-                    } else {
-                        status = 'missed';
-                    }
-                }
-
-                return {
-                    testId: test._id,
-                    score: attempt ? attempt.score : null,
-                    percentage: attempt ? attempt.percentage : null,
-                    status: status, // 'completed', 'in_progress', 'missed', 'not_enrolled'
-                    submittedAt: attempt ? attempt.submittedAt : null,
-                    highestScore: testStats[test._id.toString()]?.highest || 0,
-                    averageScore: testStats[test._id.toString()]?.count > 0
-                        ? parseFloat((testStats[test._id.toString()].totalScore / testStats[test._id.toString()].count).toFixed(2))
-                        : 0
-                };
-            });
-
-            // Stats Calculation
-            const attemptsCount = testScores.filter(t => t.status === 'completed' || t.status === 'in_progress').length;
-            const missedTestCount = testScores.filter(t => t.status === 'missed').length;
-
-            // Average only considers attempted tests
-            const totalPercentage = testScores.reduce((sum, t) => sum + (t.percentage || 0), 0);
-            const avgPercentage = attemptsCount > 0
-                ? totalPercentage / attemptsCount
-                : 0;
-
-            // Assignment Analytics — filter out assignments where this student is excluded
-            const studentSubmissions = submissions.filter((s: any) => s.student.toString() === student._id.toString());
-            const studentAssignments = assignments.filter((a: any) => {
-                const excluded: string[] = (a as any).excludedStudents || [];
-                return !excluded.includes(student.phoneNumber);
-            });
-            const assignmentStatuses = studentAssignments.map((assignment: any) => {
-                const submission = studentSubmissions.find((s: any) => s.assignment.toString() === assignment._id.toString());
-                const assignmentDate = new Date(assignment.createdAt);
-                const deadline = new Date(assignment.deadline);
-
-                let status = 'PENDING';
-                if (submission) {
-                    status = submission.status === 'CORRECTED' ? 'CORRECTED' : ((submission as any).overrideOnTime ? 'SUBMITTED' : (submission.isLate ? 'LATE_SUBMITTED' : 'SUBMITTED'));
-                } else {
-                    const now = new Date();
-
-                    if (studentCreatedAt > assignmentDate) {
-                        // Student joined after assignment was created? 
-                        // Usually for assignments, if the deadline hasn't passed, they can still do it.
-                        // BUT if deadline passed AND they joined after creation (or after deadline?), should it count as missed?
-                        // "if added after test deployment then it should not be considered as test missed"
-                        // Let's apply similar logic: if they joined AFTER the deadline, they definitely couldn't do it.
-                        // IF they joined BEFORE deadline but didn't submit -> Missed.
-
-                        if (studentCreatedAt > deadline) {
-                            status = 'NOT_ENROLLED';
-                        } else if (now > deadline) {
-                            status = 'MISSED';
-                        }
-                    } else {
-                        // Normal case
-                        if (now > deadline) status = 'MISSED';
-                    }
-                }
-
-                return {
-                    assignmentId: assignment._id,
-                    status,
-                    submittedAt: submission ? submission.submittedAt : null,
-                    quality: submission ? (submission as any).quality : null
-                };
-            });
-
-            const submittedCount = assignmentStatuses.filter(a => ['SUBMITTED', 'LATE_SUBMITTED', 'CORRECTED'].includes(a.status)).length;
-            const lateCount = assignmentStatuses.filter(a => a.status === 'LATE_SUBMITTED').length;
-            const missedAssignmentCount = assignmentStatuses.filter(a => a.status === 'MISSED').length;
-
-            const goodQuality = assignmentStatuses.filter(a => a.quality === 'GOOD').length;
-            const satisfactoryQuality = assignmentStatuses.filter(a => a.quality === 'SATISFACTORY').length;
-            const poorQuality = assignmentStatuses.filter(a => a.quality === 'POOR').length;
-
-            // Completion rate: (Submitted / (Total - Not Enrolled)) * 100
-            const validAssignments = assignmentStatuses.filter(a => a.status !== 'NOT_ENROLLED').length;
-            const completionRate = validAssignments > 0 ? (submittedCount / validAssignments) * 100 : 0;
-
-            // Offline Exam Results
-            const studentOfflineExams = offlineExams.map((exam: any) => {
-                const result = exam.results.find((r: any) => r.studentPhone === student.phoneNumber);
-                if (!result) return null;
-
-                const validResults: any[] = [];
-                exam.results.forEach((r: any) => {
-                    const numericPct = typeof r.percentage === 'number' ? r.percentage : parseFloat(r.percentage);
-                    const numericMarks = typeof r.marksObtained === 'number' ? r.marksObtained : parseFloat(r.marksObtained);
-                    if (!isNaN(numericPct)) {
-                        validResults.push({ ...r, numericMarks, numericPct });
-                    }
-                });
-
-                // True Batch Rank based purely on marks (Standard Competition Rank)
-                const allPercentages = validResults.map(r => r.numericPct);
-                const sortedPercentages = [...allPercentages].sort((a, b) => b - a);
+                if (excluded.includes(student.phoneNumber)) return false;
                 
-                let rank: number | string = '-';
-                const studentPct = typeof result.percentage === 'number' ? result.percentage : parseFloat(result.percentage);
-                if (!isNaN(studentPct)) {
-                    rank = sortedPercentages.indexOf(studentPct) + 1;
+                const targetStudents = (t.deployment && t.deployment.students) ? t.deployment.students : [];
+                if (targetStudents.length > 0) {
+                    const isTargeted = targetStudents.some((ts: any) => ts.phoneNumber === student.phoneNumber);
+                    if (!isTargeted) return false;
                 }
-
-                const highestPercentage = allPercentages.length > 0 ? Math.max(...allPercentages) : 0;
-                const averagePercentage = allPercentages.length > 0 
-                    ? parseFloat((allPercentages.reduce((sum, p) => sum + p, 0) / allPercentages.length).toFixed(2))
-                    : 0;
-
-                return {
-                    examId: exam._id,
-                    chapterName: exam.chapterName,
-                    testDate: exam.testDate,
-                    fullMarks: exam.fullMarks,
-                    marksObtained: result.marksObtained,
-                    percentage: result.percentage,
-                    highestPercentage,
-                    averagePercentage,
-                    rank,
-                    totalStudents: validResults.length
-                };
-            }).filter(Boolean);
-
-            return {
-                student: {
-                    _id: student._id,
-                    name: student.name,
-                    phoneNumber: student.phoneNumber,
-                    joinedAt: student.createdAt,
-                    schoolName: student.schoolName || '',
-                    board: student.board || ''
-                },
-                stats: {
-                    avgTestPercentage: parseFloat(avgPercentage.toFixed(2)),
-                    assignmentCompletionRate: parseFloat(completionRate.toFixed(2)),
-                    testsAttempted: attemptsCount,
-                    testsMissed: missedTestCount,
-                    assignmentsSubmitted: submittedCount,
-                    assignmentsLate: lateCount,
-                    assignmentsMissed: missedAssignmentCount,
-                    goodQuality,
-                    satisfactoryQuality,
-                    poorQuality
-                },
-                tests: testScores,
-                assignments: assignmentStatuses,
-                offlineExams: studentOfflineExams
-            };
-        });
-
-        // Add Highest Scores and Average to test metadata for frontend
-        const testsWithStats = tests.map((t: any) => ({ // Fix: using testsWithStats, not testsWithHighest
-            ...t,
-            highestScore: testStats[t._id.toString()]?.highest || 0,
-            averageScore: testStats[t._id.toString()]?.count > 0
-                ? parseFloat((testStats[t._id.toString()].totalScore / testStats[t._id.toString()].count).toFixed(2))
-                : 0
-        }));
-
-        return NextResponse.json({
-            batch,
-            tests: testsWithStats,
-            assignments,
-            offlineExams,
-            analytics
-        });
-
-    } catch (error: any) {
-        console.error('Analytics API Error:', error);
-        return NextResponse.json({ error: error.message || 'Failed to fetch analytics' }, { status: 500 });
-    }
-}
+                return true;
+            });
+
+            const testScores = studentTests.map((test: any) => {
+                const attempt = studentAttempts.find((a: any) => a.testId.toString() === test._id.toString());
+                const testStartDate = new Date(test.deployment.startTime);
+
+                // Determine Status:
+                // - Completed/In Progress -> from attempt
+                // - Not Attempted -> 
+                //      - If joined AFTER test start -> 'not_enrolled' (ignore for missed count)
+                //      - If joined BEFORE test start -> 'missed'
+                let status = 'not_attempted';
+                if (attempt) {
+                    status = attempt.status;
+                } else {
+                    // Check enrollment date
+                    // detailed check: if test started BEFORE student was created, they couldn't take it.
+                    if (studentCreatedAt > testStartDate) {
+                        status = 'not_enrolled';
+                    } else {
+                        status = 'missed';
+                    }
+                }
+
+                return {
+                    testId: test._id,
+                    score: attempt ? attempt.score : null,
+                    percentage: attempt ? attempt.percentage : null,
+                    status: status, // 'completed', 'in_progress', 'missed', 'not_enrolled'
+                    submittedAt: attempt ? attempt.submittedAt : null,
+                    highestScore: testStats[test._id.toString()]?.highest || 0,
+                    averageScore: testStats[test._id.toString()]?.count > 0
+                        ? parseFloat((testStats[test._id.toString()].totalScore / testStats[test._id.toString()].count).toFixed(2))
+                        : 0
+                };
+            });
+
+            // Stats Calculation
+            const attemptsCount = testScores.filter(t => t.status === 'completed' || t.status === 'in_progress').length;
+            const missedTestCount = testScores.filter(t => t.status === 'missed').length;
+
+            // Average only considers attempted tests
+            const totalPercentage = testScores.reduce((sum, t) => sum + (t.percentage || 0), 0);
+            const avgPercentage = attemptsCount > 0
+                ? totalPercentage / attemptsCount
+                : 0;
+
+            // Assignment Analytics — filter out assignments where this student is excluded
+            const studentSubmissions = submissions.filter((s: any) => s.student.toString() === student._id.toString());
+            const studentAssignments = assignments.filter((a: any) => {
+                const excluded: string[] = (a as any).excludedStudents || [];
+                return !excluded.includes(student.phoneNumber);
+            });
+            const assignmentStatuses = studentAssignments.map((assignment: any) => {
+                const submission = studentSubmissions.find((s: any) => s.assignment.toString() === assignment._id.toString());
+                const assignmentDate = new Date(assignment.createdAt);
+                const deadline = new Date(assignment.deadline);
+
+                let status = 'PENDING';
+                if (submission) {
+                    status = submission.status === 'CORRECTED' ? 'CORRECTED' : ((submission as any).overrideOnTime ? 'SUBMITTED' : (submission.isLate ? 'LATE_SUBMITTED' : 'SUBMITTED'));
+                } else {
+                    const now = new Date();
+
+                    if (studentCreatedAt > assignmentDate) {
+                        // Student joined after assignment was created? 
+                        // Usually for assignments, if the deadline hasn't passed, they can still do it.
+                        // BUT if deadline passed AND they joined after creation (or after deadline?), should it count as missed?
+                        // "if added after test deployment then it should not be considered as test missed"
+                        // Let's apply similar logic: if they joined AFTER the deadline, they definitely couldn't do it.
+                        // IF they joined BEFORE deadline but didn't submit -> Missed.
+
+                        if (studentCreatedAt > deadline) {
+                            status = 'NOT_ENROLLED';
+                        } else if (now > deadline) {
+                            status = 'MISSED';
+                        }
+                    } else {
+                        // Normal case
+                        if (now > deadline) status = 'MISSED';
+                    }
+                }
+
+                return {
+                    assignmentId: assignment._id,
+                    status,
+                    submittedAt: submission ? submission.submittedAt : null,
+                    quality: submission ? (submission as any).quality : null
+                };
+            });
+
+            const submittedCount = assignmentStatuses.filter(a => ['SUBMITTED', 'LATE_SUBMITTED', 'CORRECTED'].includes(a.status)).length;
+            const lateCount = assignmentStatuses.filter(a => a.status === 'LATE_SUBMITTED').length;
+            const missedAssignmentCount = assignmentStatuses.filter(a => a.status === 'MISSED').length;
+
+            const goodQuality = assignmentStatuses.filter(a => a.quality === 'GOOD').length;
+            const satisfactoryQuality = assignmentStatuses.filter(a => a.quality === 'SATISFACTORY').length;
+            const poorQuality = assignmentStatuses.filter(a => a.quality === 'POOR').length;
+
+            // Completion rate: (Submitted / (Total - Not Enrolled)) * 100
+            const validAssignments = assignmentStatuses.filter(a => a.status !== 'NOT_ENROLLED').length;
+            const completionRate = validAssignments > 0 ? (submittedCount / validAssignments) * 100 : 0;
+
+            // Offline Exam Results
+            const studentOfflineExams = offlineExams.map((exam: any) => {
+                const result = exam.results.find((r: any) => r.studentPhone === student.phoneNumber);
+                if (!result) return null;
+
+                const validResults: any[] = [];
+                exam.results.forEach((r: any) => {
+                    const numericPct = typeof r.percentage === 'number' ? r.percentage : parseFloat(r.percentage);
+                    const numericMarks = typeof r.marksObtained === 'number' ? r.marksObtained : parseFloat(r.marksObtained);
+                    if (!isNaN(numericPct)) {
+                        validResults.push({ ...r, numericMarks, numericPct });
+                    }
+                });
+
+                // True Batch Rank based purely on marks (Standard Competition Rank)
+                const allPercentages = validResults.map(r => r.numericPct);
+                const sortedPercentages = [...allPercentages].sort((a, b) => b - a);
+                
+                let rank: number | string = '-';
+                const studentPct = typeof result.percentage === 'number' ? result.percentage : parseFloat(result.percentage);
+                if (!isNaN(studentPct)) {
+                    rank = sortedPercentages.indexOf(studentPct) + 1;
+                }
+
+                const highestPercentage = allPercentages.length > 0 ? Math.max(...allPercentages) : 0;
+                const averagePercentage = allPercentages.length > 0 
+                    ? parseFloat((allPercentages.reduce((sum, p) => sum + p, 0) / allPercentages.length).toFixed(2))
+                    : 0;
+
+                return {
+                    examId: exam._id,
+                    chapterName: exam.chapterName,
+                    testDate: exam.testDate,
+                    fullMarks: exam.fullMarks,
+                    marksObtained: result.marksObtained,
+                    percentage: result.percentage,
+                    highestPercentage,
+                    averagePercentage,
+                    rank,
+                    totalStudents: validResults.length
+                };
+            }).filter(Boolean);
+
+            return {
+                student: {
+                    _id: student._id,
+                    name: student.name,
+                    phoneNumber: student.phoneNumber,
+                    joinedAt: student.createdAt,
+                    schoolName: student.schoolName || '',
+                    board: student.board || ''
+                },
+                stats: {
+                    avgTestPercentage: parseFloat(avgPercentage.toFixed(2)),
+                    assignmentCompletionRate: parseFloat(completionRate.toFixed(2)),
+                    testsAttempted: attemptsCount,
+                    testsMissed: missedTestCount,
+                    assignmentsSubmitted: submittedCount,
+                    assignmentsLate: lateCount,
+                    assignmentsMissed: missedAssignmentCount,
+                    goodQuality,
+                    satisfactoryQuality,
+                    poorQuality
+                },
+                tests: testScores,
+                assignments: assignmentStatuses,
+                offlineExams: studentOfflineExams
+            };
+        });
+
+        // Add Highest Scores and Average to test metadata for frontend
+        const testsWithStats = tests.map((t: any) => ({ // Fix: using testsWithStats, not testsWithHighest
+            ...t,
+            highestScore: testStats[t._id.toString()]?.highest || 0,
+            averageScore: testStats[t._id.toString()]?.count > 0
+                ? parseFloat((testStats[t._id.toString()].totalScore / testStats[t._id.toString()].count).toFixed(2))
+                : 0
+        }));
+
+        return NextResponse.json({
+            batch,
+            tests: testsWithStats,
+            assignments,
+            offlineExams,
+            analytics
+        });
+
+    } catch (error: any) {
+        console.error('Analytics API Error:', error);
+        return NextResponse.json({ error: error.message || 'Failed to fetch analytics' }, { status: 500 });
+    }
+}

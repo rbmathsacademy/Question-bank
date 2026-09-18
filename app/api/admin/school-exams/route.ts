@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/db';
 import BatchStudent from '@/models/BatchStudent';
 import SchoolExam from '@/models/SchoolExam';
@@ -15,7 +15,10 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Batch is required' }, { status: 400 });
         }
 
-        const students = await BatchStudent.find({ courses: batch }).select('name phoneNumber schoolName board').lean();
+        let studentQuery: any = { courses: batch };
+        if (schoolName) studentQuery.schoolName = schoolName;
+
+        const students = await BatchStudent.find(studentQuery).select('name phoneNumber schoolName board').lean();
         
         let query: any = { batch };
         if (schoolName) query.schoolName = schoolName;

@@ -1,4 +1,4 @@
-'use client';
+﻿with open('app/admin/analytics/SchoolPerformancePanel.tsx', 'w', encoding='utf-8') as f: f.write(r''''use client';
 
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
@@ -397,4 +397,4 @@ export default function SchoolPerformancePanel({ batch, analyticsData }: { batch
             )}
         </div>
     );
-}
+}''')
