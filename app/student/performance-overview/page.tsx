@@ -21,8 +21,8 @@ export default function PerformanceOverviewPage() {
             if (res.ok) {
                 const json = await res.json();
                 setData(json);
-                if (json.batches && json.batches.length > 0) {
-                    setSelectedBatch(json.batches[0]);
+                if (json.student?.courses && json.student.courses.length > 0) {
+                    setSelectedBatch(json.student.courses[0]);
                 }
             }
         } catch (error) {
@@ -59,10 +59,10 @@ export default function PerformanceOverviewPage() {
                     </div>
                 </div>
                 
-                {data.batches && data.batches.length > 1 && (
+                {data.student?.courses && data.student.courses.length > 1 && (
                     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-3">
                         <BatchTabSwitcher 
-                            batches={data.batches} 
+                            batches={data.student.courses} 
                             selectedBatch={selectedBatch || ''} 
                             onSelect={setSelectedBatch} 
                         />
