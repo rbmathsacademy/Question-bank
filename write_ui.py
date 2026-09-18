@@ -1,4 +1,4 @@
-'use client';
+﻿with open('app/student/performance-overview/page.tsx', 'w', encoding='utf-8') as f: f.write(r''''use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -196,4 +196,4 @@ export default function PerformanceOverviewPage() {
             </main>
         </div>
     );
-}
+}''')
