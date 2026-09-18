@@ -1,8 +1,8 @@
-'use client';
+﻿with open('app/admin/analytics/SchoolPerformancePanel.tsx', 'w', encoding='utf-8') as f: f.write(r''''use client';
 
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
-import { Plus, Search, Check, X, FileText, Send, User, Download, TrendingUp, TrendingDown, Minus, CheckSquare } from 'lucide-react';
+import { Plus, Search, Check, X, FileText, Send, User, Download, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { generateBatchSchoolReportPDF } from './generateBatchSchoolReportPDF';
 
 export default function SchoolPerformancePanel({ batch, analyticsData }: { batch: string, analyticsData?: any }) {
@@ -28,8 +28,6 @@ export default function SchoolPerformancePanel({ batch, analyticsData }: { batch
 
     useEffect(() => {
         fetchData();
-        // Reset selections when filters change
-        setSelectedPhones(new Set());
     }, [batch, filterSchool, filterExam]);
 
     const fetchData = async () => {
@@ -110,10 +108,7 @@ export default function SchoolPerformancePanel({ batch, analyticsData }: { batch
         if (selectedPhones.size === 0) return toast.error('No students selected');
         if (!whatsappMessage) return toast.error('Message cannot be empty');
         
-        const selectedStudentsList = students.filter(s => selectedPhones.has(s.phoneNumber));
-        // Use alternativePhone if available, else fallback to phoneNumber
-        const actualPhones = selectedStudentsList.map(s => s.alternativePhone || s.phoneNumber);
-        
+        const actualPhones = Array.from(selectedPhones);
         const dataStr = `WHATSAPP_BULK|||${whatsappMessage}|||${actualPhones.join(',')}`;
         navigator.clipboard.writeText(dataStr);
         toast.success(`Copied ${actualPhones.length} number(s)! Open WhatsApp Web and press F9`);
@@ -124,14 +119,6 @@ export default function SchoolPerformancePanel({ batch, analyticsData }: { batch
         if (newSet.has(phone)) newSet.delete(phone);
         else newSet.add(phone);
         setSelectedPhones(newSet);
-    };
-
-    const handleSelectAll = () => {
-        if (selectedPhones.size === students.length) {
-            setSelectedPhones(new Set());
-        } else {
-            setSelectedPhones(new Set(students.map(s => s.phoneNumber)));
-        }
     };
 
     const getCorrelationData = (student: any, exam: any) => {
@@ -204,8 +191,8 @@ export default function SchoolPerformancePanel({ batch, analyticsData }: { batch
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-slate-800/50 p-4 rounded-xl border border-slate-700">
-                <div className="flex flex-wrap gap-4 w-full xl:w-auto items-center">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                <div className="flex gap-4 w-full md:w-auto">
                     <select 
                         value={filterSchool} 
                         onChange={(e) => setFilterSchool(e.target.value)}
@@ -223,19 +210,9 @@ export default function SchoolPerformancePanel({ batch, analyticsData }: { batch
                         <option value="">All Exams</option>
                         {uniqueExams.map(e => <option key={e} value={e}>{e}</option>)}
                     </select>
-
-                    {students.length > 0 && (
-                        <button 
-                            onClick={handleSelectAll}
-                            className="flex items-center gap-2 px-3 py-2 bg-slate-900 border border-slate-700 hover:bg-slate-800 text-slate-300 rounded-lg text-sm font-semibold transition-colors"
-                        >
-                            <CheckSquare className="w-4 h-4 text-indigo-400" />
-                            {selectedPhones.size === students.length ? 'Deselect All' : 'Select All'}
-                        </button>
-                    )}
                 </div>
 
-                <div className="flex flex-wrap gap-3 w-full xl:w-auto items-center">
+                <div className="flex gap-3 w-full md:w-auto items-center">
                     <button 
                         onClick={handleDownloadBatchReport}
                         className="px-4 py-2 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/30 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors whitespace-nowrap"
@@ -248,7 +225,7 @@ export default function SchoolPerformancePanel({ batch, analyticsData }: { batch
                         placeholder="WhatsApp message..."
                         value={whatsappMessage}
                         onChange={(e) => setWhatsappMessage(e.target.value)}
-                        className="bg-slate-900 border border-slate-700 text-slate-300 px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-indigo-500 flex-1 min-w-[200px]"
+                        className="bg-slate-900 border border-slate-700 text-slate-300 px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-indigo-500 flex-1 max-w-[200px]"
                     />
                     <button 
                         onClick={copyForWhatsApp}
@@ -264,7 +241,7 @@ export default function SchoolPerformancePanel({ batch, analyticsData }: { batch
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {students.map(student => (
-                        <div key={student.phoneNumber} className={`bg-slate-800/40 border ${selectedPhones.has(student.phoneNumber) ? 'border-indigo-500/50' : 'border-slate-700/50'} rounded-xl overflow-hidden shadow-lg transition-colors`}>
+                        <div key={student.phoneNumber} className="bg-slate-800/40 border border-slate-700/50 rounded-xl overflow-hidden shadow-lg">
                             <div className="p-4 border-b border-slate-700/50 flex justify-between items-start bg-slate-800/60">
                                 <div>
                                     <div className="flex items-center gap-2">
@@ -272,14 +249,11 @@ export default function SchoolPerformancePanel({ batch, analyticsData }: { batch
                                             type="checkbox" 
                                             checked={selectedPhones.has(student.phoneNumber)}
                                             onChange={() => toggleSelection(student.phoneNumber)}
-                                            className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-slate-900 cursor-pointer"
+                                            className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-slate-900"
                                         />
-                                        <h3 className="text-slate-200 font-bold text-lg cursor-pointer" onClick={() => toggleSelection(student.phoneNumber)}>{student.name}</h3>
+                                        <h3 className="text-slate-200 font-bold text-lg">{student.name}</h3>
                                     </div>
                                     <p className="text-slate-400 text-xs ml-6">{student.schoolName || 'No School'} - {student.phoneNumber}</p>
-                                    {student.alternativePhone && (
-                                        <p className="text-emerald-400/80 text-[10px] ml-6 font-semibold">Alt: {student.alternativePhone}</p>
-                                    )}
                                 </div>
                                 <button 
                                     onClick={() => {
@@ -421,4 +395,4 @@ export default function SchoolPerformancePanel({ batch, analyticsData }: { batch
             )}
         </div>
     );
-}
+}''')

@@ -18,7 +18,8 @@ export async function GET(req: NextRequest) {
         let studentQuery: any = { courses: batch };
         if (schoolName) studentQuery.schoolName = schoolName;
 
-        const students = await BatchStudent.find(studentQuery).select('name phoneNumber schoolName board').lean();
+        // Added alternativePhone to the select statement
+        const students = await BatchStudent.find(studentQuery).select('name phoneNumber alternativePhone schoolName board').lean();
         
         let query: any = { batch };
         if (schoolName) query.schoolName = schoolName;
@@ -26,8 +27,7 @@ export async function GET(req: NextRequest) {
 
         const schoolExams = await SchoolExam.find(query).sort({ date: -1 }).lean();
 
-        // Map students to their exams
-        const results = students.map(student => {
+        let results = students.map(student => {
             const studentExams = schoolExams.filter((e: any) => e.studentPhone === student.phoneNumber);
             return {
                 ...student,
@@ -35,7 +35,10 @@ export async function GET(req: NextRequest) {
             };
         });
 
-        // Unique exam names for the filter dropdown
+        if (examName) {
+            results = results.filter(r => r.exams.length > 0);
+        }
+
         const uniqueExams = await SchoolExam.distinct('examName', { batch });
         const uniqueSchools = await BatchStudent.distinct('schoolName', { courses: batch });
 
