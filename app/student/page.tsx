@@ -63,6 +63,7 @@ interface DashboardData {
         submittedAt: string | null;
         quality: 'GOOD' | 'SATISFACTORY' | 'POOR' | null;
     }>;
+    schoolExams?: any[];
     offlineExams?: Array<{
         examId: string;
         batch: string;
@@ -175,8 +176,9 @@ export default function StudentDashboard() {
 
     if (!data) return null;
 
-    const allNavItems = [
+            const allNavItems = [
         { id: 'dashboard', label: 'Dashboard', icon: Menu, href: '/student', gradient: 'from-blue-600 to-indigo-600' },
+        ...(data.schoolExams && data.schoolExams.length > 0 ? [{ id: 'performance', label: 'Performance Overview', icon: TrendingUp, href: '/student/performance-overview', gradient: 'from-amber-500 to-orange-500' }] : []),
         { id: 'online-test', label: 'Online Test', icon: ClipboardCheck, href: '/student/online-test', gradient: 'from-emerald-500 to-teal-500' },
         { id: 'assignments', label: 'Assignment Submission', icon: FileText, href: '/student/assignments', gradient: 'from-blue-500 to-cyan-500' },
         { id: 'question-bank', label: 'Question Bank', icon: BookOpen, href: '/student/question-bank', gradient: 'from-purple-500 to-violet-500' },
@@ -607,3 +609,6 @@ export default function StudentDashboard() {
         </div>
     );
 }
+
+
+

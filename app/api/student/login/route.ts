@@ -171,6 +171,9 @@ export async function POST(req: NextRequest) {
         // ---------------------------------------------------------
         // 4. STUDENT LOGIN (BatchStudent - by phone number)
         // ---------------------------------------------------------
+        if (!cleanPhone) {
+            return NextResponse.json({ error: 'Invalid password. Please try again.' }, { status: 401 });
+        }
         const student = await BatchStudent.findOne({ phoneNumber: cleanPhone }).lean();
 
         if (!student) {
