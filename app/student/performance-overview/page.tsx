@@ -180,9 +180,9 @@ export default function PerformanceOverviewPage() {
                                                     isDeteriorated ? 'text-orange-400' :
                                                     'text-blue-400'
                                                 }`}>
-                                                    {isImproved && "Fantastic Improvement! 🎉"}
-                                                    {isDeteriorated && "Let's bounce back! 💪"}
-                                                    {isInSync && "Consistent Performer! 🌟"}
+                                                    {isImproved && "Exceeded Expectations! 🎉"}
+                                                    {isDeteriorated && "Underperformed — Let's bounce back! 💪"}
+                                                    {isInSync && "In Sync — Consistent Performer! 🌟"}
                                                 </h4>
                                                 <p className="text-xs font-medium text-slate-400 mt-1 leading-snug">
                                                     System predicted ~{exam.priorSystemAvg}%. You scored {exam.percentage.toFixed(1)}%.
