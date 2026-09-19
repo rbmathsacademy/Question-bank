@@ -95,6 +95,8 @@ function FeesManagementContent() {
     const [selectedMonths, setSelectedMonths] = useState<Date[]>([]);
     const [entryGridYear, setEntryGridYear] = useState(new Date().getFullYear());
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const entrySearchAbortRef = useRef<AbortController | null>(null);
+    const entrySearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const gridContainerRef = useRef<HTMLDivElement>(null);
 
 
@@ -238,16 +240,17 @@ function FeesManagementContent() {
         } catch (e) { console.error('Error fetching batches:', e); }
     };
 
-    const fetchStudents = async (batch?: string, search?: string): Promise<Student[]> => {
+    const fetchStudents = async (batch?: string, search?: string, signal?: AbortSignal): Promise<Student[]> => {
         try {
             const params = new URLSearchParams();
             if (batch) params.append('batch', batch);
             if (search) params.append('studentName', search);
 
-            const res = await fetch(`/api/admin/fees/students?${params.toString()}`);
+            const res = await fetch(`/api/admin/fees/students?${params.toString()}`, { signal });
             const data = await res.json();
             return data.students || [];
-        } catch (e) {
+        } catch (e: any) {
+            if (e.name === 'AbortError') return [];
             console.error(e);
             return [];
         }
@@ -379,29 +382,39 @@ function FeesManagementContent() {
         }
     };
 
-    const handleSearch = async (term: string) => {
+    const handleSearch = (term: string) => {
         setEntrySearch(term);
         setIsDropdownOpen(true);
-        console.log('Searching for:', term);
 
-        // 1. If batch is selected and search is cleared, show all batch students
+        // Cancel any pending debounce timer
+        if (entrySearchTimerRef.current) clearTimeout(entrySearchTimerRef.current);
+        // Abort any in-flight fetch
+        if (entrySearchAbortRef.current) entrySearchAbortRef.current.abort();
+
+        // 1. If batch is selected and search is cleared, show all batch students immediately
         if (entryForm.batch && term.trim().length === 0) {
-            console.log('Search cleared with batch selected, fetching batch students');
-            const students = await fetchStudents(entryForm.batch);
-            setEntryStudents(students);
+            const abortController = new AbortController();
+            entrySearchAbortRef.current = abortController;
+            fetchStudents(entryForm.batch, undefined, abortController.signal).then(students => {
+                if (!abortController.signal.aborted) setEntryStudents(students);
+            });
             return;
         }
 
-        // 2. Global search (threshold lowered to > 0 to be responsive)
-        if (term.trim().length > 0) {
-            console.log('Fetching students for term:', term);
-            const students = await fetchStudents(undefined, term);
-            console.log('Found students:', students.length);
-            setEntryStudents(students);
-        } else {
-            // 3. Search cleared and no batch -> clear list
+        // 2. Search cleared and no batch -> clear list immediately
+        if (term.trim().length === 0) {
             setEntryStudents([]);
+            return;
         }
+
+        // 3. Debounced global search
+        entrySearchTimerRef.current = setTimeout(() => {
+            const abortController = new AbortController();
+            entrySearchAbortRef.current = abortController;
+            fetchStudents(undefined, term, abortController.signal).then(students => {
+                if (!abortController.signal.aborted) setEntryStudents(students);
+            });
+        }, 250);
     };
 
     const handleStudentSelect = (student: Student, batchName?: string, e?: React.MouseEvent) => {
