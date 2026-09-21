@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { ChevronDown, X, Check, ArrowLeft, ArrowRight, Home, Loader2 } from 'lucide-react';
+import { ChevronDown, X, Check, ArrowLeft, ArrowRight, Home, Loader2, Maximize2, Minimize2 } from 'lucide-react';
 import Latex from 'react-latex-next';
 import LatexWithImages from '../../components/LatexWithImages';
 import 'katex/dist/katex.min.css';
@@ -141,6 +141,23 @@ export default function JEESection() {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
     const [showExplanation, setShowExplanation] = useState(false);
+
+    // Fullscreen
+    const [isFullscreen, setIsFullscreen] = useState(false);
+
+    const toggleFullscreen = useCallback(() => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+            document.exitFullscreen().catch(() => {});
+        }
+    }, []);
+
+    useEffect(() => {
+        const handler = () => setIsFullscreen(!!document.fullscreenElement);
+        document.addEventListener('fullscreenchange', handler);
+        return () => document.removeEventListener('fullscreenchange', handler);
+    }, []);
 
     // ─── Auth ───
     useEffect(() => {
@@ -477,6 +494,15 @@ export default function JEESection() {
                             Q {currentIndex + 1} / {totalQuestions}
                         </div>
                     )}
+
+                    {/* Fullscreen toggle */}
+                    <button
+                        onClick={toggleFullscreen}
+                        className="flex-shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+                        title={isFullscreen ? 'Exit Fullscreen' : 'Go Fullscreen'}
+                    >
+                        {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                    </button>
                 </div>
             </div>
 
