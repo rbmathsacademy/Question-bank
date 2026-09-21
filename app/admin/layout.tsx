@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Users, FileText, BookOpen, Upload, ClipboardCheck, ClipboardList, BookText, DollarSign, LogOut, Menu, X, Calendar, BarChart3, ChevronRight, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, BookOpen, Upload, ClipboardCheck, ClipboardList, BookText, DollarSign, LogOut, Menu, X, Calendar, BarChart3, ChevronRight, MessageSquare, GraduationCap } from 'lucide-react';
 import InstallPWA from '@/components/InstallPWA';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -90,7 +90,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 const user = JSON.parse(storedUser);
                 const allowedRoutes: Record<string, string[]> = {
                     'manager': ['/admin/fees'],
-                    'copy_checker': ['/admin/questions', '/admin/answers', '/admin/online-tests', '/admin/assignments'],
+                    'copy_checker': ['/admin/questions', '/admin/answers', '/admin/jee-section', '/admin/online-tests', '/admin/assignments'],
                     'admin': [], // Admin allows all
                     'superadmin': []
                 };
@@ -216,6 +216,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         { name: 'Student Chat', href: '/admin/chat', icon: MessageSquare },
         { name: 'Question Bank', href: '/admin/questions', icon: FileText },
         { name: 'Answer Bank', href: '/admin/answers', icon: BookOpen },
+        { name: 'JEE Section', href: '/admin/jee-section', icon: GraduationCap },
         { name: 'Deploy Questions', href: '/admin/deploy', icon: Upload },
         { name: 'Online Tests', href: '/admin/online-tests', icon: ClipboardCheck },
         { name: 'Surveys', href: '/admin/surveys', icon: ClipboardList },
@@ -236,7 +237,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         if (user.role === 'copy_checker') {
             // Copy Checker: Question Bank, Answer Bank, Online Tests, Assignments
-            return ['Question Bank', 'Answer Bank', 'Online Tests', 'Assignments', 'Surveys'].includes(item.name);
+            return ['Question Bank', 'Answer Bank', 'JEE Section', 'Online Tests', 'Assignments', 'Surveys'].includes(item.name);
         }
 
         return false;
@@ -257,6 +258,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
 
     if (!user) return null;
+
+    // Fullscreen mode for JEE Section (hide sidebar completely)
+    const isFullscreen = pathname.startsWith('/admin/jee-section');
+
+    if (isFullscreen) {
+        return (
+            <div className="min-h-screen bg-black">
+                {children}
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-[#050b14] flex font-sans text-slate-200 selection:bg-blue-500/30">
