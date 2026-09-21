@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { ChevronDown, X, Check, ArrowLeft, ArrowRight, Home, Loader2, Maximize2, Minimize2 } from 'lucide-react';
+import { ChevronDown, X, Check, ArrowLeft, ArrowRight, Home, Loader2, Maximize2, Minimize2, Timer, RotateCcw, Clock } from 'lucide-react';
 import Latex from 'react-latex-next';
 import LatexWithImages from '../../components/LatexWithImages';
 import 'katex/dist/katex.min.css';
@@ -120,6 +120,59 @@ interface Question {
     options?: string[];
     batches?: string[];
 }
+
+const LiveTimer = ({ isRunning, resetKey }: { isRunning: boolean, resetKey: number }) => {
+    const [seconds, setSeconds] = useState(0);
+    const [countdownSeconds, setCountdownSeconds] = useState(120); // 2 minutes
+
+    useEffect(() => {
+        setSeconds(0);
+        setCountdownSeconds(120);
+    }, [resetKey]);
+
+    useEffect(() => {
+        if (!isRunning) return;
+        const interval = setInterval(() => {
+            setSeconds(prev => prev + 1);
+            setCountdownSeconds(prev => (prev > 0 ? prev - 1 : 0));
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [isRunning, resetKey]);
+
+    const formatTime = (totalSeconds: number) => {
+        const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+        const s = (totalSeconds % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+    };
+
+    if (!isRunning) return null; // Disappears when not running (i.e., after option is clicked)
+
+    return (
+        <div className="flex items-center justify-center gap-8 mt-6 mb-2 animate-in fade-in zoom-in duration-500">
+            {/* Stopwatch */}
+            <div className="flex flex-col items-center p-5 bg-gray-950/80 backdrop-blur-md border border-gray-800 rounded-3xl shadow-[0_0_30px_rgba(0,0,0,0.5)] min-w-[180px]">
+                <div className="flex items-center gap-2 mb-3 text-gray-500">
+                    <Clock className="w-5 h-5" />
+                    <span className="text-sm font-bold uppercase tracking-widest">Time Taken</span>
+                </div>
+                <div className="text-5xl font-mono font-bold text-blue-400 tracking-widest drop-shadow-[0_0_12px_rgba(59,130,246,0.6)]">
+                    {formatTime(seconds)}
+                </div>
+            </div>
+
+            {/* Countdown */}
+            <div className="flex flex-col items-center p-5 bg-gray-950/80 backdrop-blur-md border border-gray-800 rounded-3xl shadow-[0_0_30px_rgba(0,0,0,0.5)] min-w-[180px]">
+                <div className="flex items-center gap-2 mb-3 text-gray-500">
+                    <Timer className="w-5 h-5" />
+                    <span className="text-sm font-bold uppercase tracking-widest">Time Left</span>
+                </div>
+                <div className={`text-5xl font-mono font-bold tracking-widest ${countdownSeconds <= 10 ? 'text-red-500 animate-pulse drop-shadow-[0_0_12px_rgba(239,68,68,0.6)]' : 'text-green-400 drop-shadow-[0_0_12px_rgba(74,222,128,0.6)]'}`}>
+                    {formatTime(countdownSeconds)}
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export default function JEESection() {
     // Auth
@@ -537,25 +590,25 @@ export default function JEESection() {
                             <div>
                                 {/* Question Number + Topic */}
                                 <div className="flex items-center gap-3 mb-4">
-                                    <span className="bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded-lg">
+                                    <span className="bg-blue-600 text-white text-lg font-bold px-3 py-1 rounded-lg">
                                         Q{currentIndex + 1}
                                     </span>
-                                    <span className="text-gray-500 text-sm">{currentQuestion.topic}</span>
+                                    <span className="text-gray-500 text-lg">{currentQuestion.topic}</span>
                                     {currentQuestion.subtopic && (
-                                        <span className="text-gray-600 text-xs">• {currentQuestion.subtopic}</span>
+                                        <span className="text-gray-600 text-base">• {currentQuestion.subtopic}</span>
                                     )}
                                     {(currentQuestion.examNames && currentQuestion.examNames.length > 0) && (
-                                        <span className="bg-teal-900/60 text-teal-300 text-xs font-semibold px-2 py-0.5 rounded-md border border-teal-700/50">
+                                        <span className="bg-teal-900/60 text-teal-300 text-base font-semibold px-2 py-0.5 rounded-md border border-teal-700/50">
                                             {currentQuestion.examNames.join(', ')}
                                         </span>
                                     )}
-                                    {currentQuestion.marks && (
-                                        <span className="text-yellow-500 text-xs ml-auto">[{currentQuestion.marks} mark{currentQuestion.marks > 1 ? 's' : ''}]</span>
+                                    {(currentQuestion.marks || 0) > 0 && (
+                                        <span className="text-yellow-500 text-base ml-auto">[{currentQuestion.marks} mark{currentQuestion.marks! > 1 ? 's' : ''}]</span>
                                     )}
                                 </div>
 
                                 {/* Question Text */}
-                                <div className="text-xl leading-relaxed mb-8 text-gray-100">
+                                <div className="text-3xl leading-relaxed mb-8 text-gray-100">
                                     <LatexWithImages>{currentQuestion.text}</LatexWithImages>
                                 </div>
 
@@ -578,9 +631,9 @@ export default function JEESection() {
                                             key={idx}
                                             onClick={() => handleOptionClick(idx)}
                                             disabled={selectedOption !== null}
-                                            className={`w-full text-left flex items-start gap-4 p-4 rounded-xl border-2 transition-all duration-300 ${getOptionStyle(idx)}`}
+                                            className={`w-full text-left flex items-start gap-4 p-5 rounded-xl border-2 transition-all duration-300 ${getOptionStyle(idx)}`}
                                         >
-                                            <span className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold border-2 transition-all duration-300 ${
+                                            <span className={`flex-shrink-0 w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold border-2 transition-all duration-300 ${
                                                 selectedOption === null
                                                     ? 'border-gray-500 text-gray-400'
                                                     : idx === correctIdx
@@ -590,25 +643,27 @@ export default function JEESection() {
                                                             : 'border-gray-700 text-gray-600'
                                             }`}>
                                                 {selectedOption !== null && idx === correctIdx ? (
-                                                    <Check className="h-5 w-5" />
+                                                    <Check className="h-6 w-6" />
                                                 ) : selectedOption !== null && idx === selectedOption && idx !== correctIdx ? (
-                                                    <X className="h-5 w-5" />
+                                                    <X className="h-6 w-6" />
                                                 ) : (
                                                     optionLabels[idx]
                                                 )}
                                             </span>
-                                            <span className="text-lg leading-relaxed pt-1.5 flex-1">
+                                            <span className="text-2xl leading-relaxed pt-2.5 flex-1">
                                                 <LatexWithImages>{opt}</LatexWithImages>
                                             </span>
                                         </button>
                                     ))}
                                 </div>
 
+                                <LiveTimer isRunning={selectedOption === null} resetKey={currentIndex} />
+
                                 {/* Answer */}
                                 {showExplanation && currentQuestion.answer && (
                                     <div className="mb-4 p-4 rounded-xl bg-blue-950/40 border border-blue-800">
-                                        <p className="text-sm font-bold text-blue-400 mb-2">Answer</p>
-                                        <div className="text-base text-gray-200">
+                                        <p className="text-lg font-bold text-blue-400 mb-2">Answer</p>
+                                        <div className="text-xl text-gray-200">
                                             <LatexWithImages>{currentQuestion.answer}</LatexWithImages>
                                         </div>
                                     </div>
@@ -617,8 +672,8 @@ export default function JEESection() {
                                 {/* Explanation */}
                                 {showExplanation && currentQuestion.explanation && (
                                     <div className="p-4 rounded-xl bg-gray-900 border border-gray-700">
-                                        <p className="text-sm font-bold text-yellow-400 mb-3">Explanation</p>
-                                        <div className="text-base text-gray-300 leading-relaxed">
+                                        <p className="text-lg font-bold text-yellow-400 mb-3">Explanation</p>
+                                        <div className="text-xl text-gray-300 leading-relaxed">
                                             <LatexWithImages>{currentQuestion.explanation}</LatexWithImages>
                                         </div>
                                     </div>
@@ -627,8 +682,8 @@ export default function JEESection() {
                                 {/* Hint (if no explanation) */}
                                 {showExplanation && !currentQuestion.explanation && currentQuestion.hint && (
                                     <div className="p-4 rounded-xl bg-gray-900 border border-gray-700">
-                                        <p className="text-sm font-bold text-purple-400 mb-2">Hint</p>
-                                        <div className="text-base text-gray-300">
+                                        <p className="text-lg font-bold text-purple-400 mb-2">Hint</p>
+                                        <div className="text-xl text-gray-300">
                                             <LatexWithImages>{currentQuestion.hint}</LatexWithImages>
                                         </div>
                                     </div>
