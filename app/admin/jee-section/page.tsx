@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { ChevronDown, X, Check, ArrowLeft, ArrowRight, Home, Loader2, Maximize2, Minimize2, Timer, RotateCcw, Clock } from 'lucide-react';
+import { ChevronDown, X, Check, ArrowLeft, ArrowRight, Home, Loader2, Maximize2, Minimize2, Timer, RotateCcw, Clock, Play, Pause, Plus, Minus } from 'lucide-react';
 import Latex from 'react-latex-next';
 import LatexWithImages from '../../components/LatexWithImages';
 import 'katex/dist/katex.min.css';
@@ -123,21 +123,26 @@ interface Question {
 
 const LiveTimer = ({ isRunning, resetKey }: { isRunning: boolean, resetKey: number }) => {
     const [seconds, setSeconds] = useState(0);
-    const [countdownSeconds, setCountdownSeconds] = useState(120); // 2 minutes
+    const [initialCountdown, setInitialCountdown] = useState(120); // 2 minutes default
+    const [countdownSeconds, setCountdownSeconds] = useState(120); 
+    const [isTimerActive, setIsTimerActive] = useState(false); // Manually controlled
 
     useEffect(() => {
         setSeconds(0);
-        setCountdownSeconds(120);
-    }, [resetKey]);
+        setCountdownSeconds(initialCountdown);
+        setIsTimerActive(false); // Pause on reset
+    }, [resetKey, initialCountdown]);
 
     useEffect(() => {
-        if (!isRunning) return;
+        // If the question is answered (isRunning == false), stop the timer
+        if (!isRunning || !isTimerActive) return;
+        
         const interval = setInterval(() => {
             setSeconds(prev => prev + 1);
             setCountdownSeconds(prev => (prev > 0 ? prev - 1 : 0));
         }, 1000);
         return () => clearInterval(interval);
-    }, [isRunning, resetKey]);
+    }, [isRunning, isTimerActive, resetKey]);
 
     const formatTime = (totalSeconds: number) => {
         const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
@@ -148,26 +153,59 @@ const LiveTimer = ({ isRunning, resetKey }: { isRunning: boolean, resetKey: numb
     if (!isRunning) return null; // Disappears when not running (i.e., after option is clicked)
 
     return (
-        <div className="flex items-center justify-center gap-8 mt-6 mb-2 animate-in fade-in zoom-in duration-500">
-            {/* Stopwatch */}
-            <div className="flex flex-col items-center p-5 bg-gray-950/80 backdrop-blur-md border border-gray-800 rounded-3xl shadow-[0_0_30px_rgba(0,0,0,0.5)] min-w-[180px]">
-                <div className="flex items-center gap-2 mb-3 text-gray-500">
-                    <Clock className="w-5 h-5" />
-                    <span className="text-sm font-bold uppercase tracking-widest">Time Taken</span>
-                </div>
-                <div className="text-5xl font-mono font-bold text-blue-400 tracking-widest drop-shadow-[0_0_12px_rgba(59,130,246,0.6)]">
-                    {formatTime(seconds)}
+        <div className="flex flex-col items-center gap-4 mt-6 mb-2 animate-in fade-in zoom-in duration-500">
+            {/* Timer Controls */}
+            <div className="flex items-center gap-4 bg-gray-900 px-4 py-2 rounded-full border border-gray-700">
+                <button 
+                    onClick={() => setIsTimerActive(!isTimerActive)}
+                    className={`p-2 rounded-full flex items-center justify-center transition-colors ${isTimerActive ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'}`}
+                    title={isTimerActive ? "Pause Timer" : "Start Timer"}
+                >
+                    {isTimerActive ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+                </button>
+                <button 
+                    onClick={() => {
+                        setIsTimerActive(false);
+                        setSeconds(0);
+                        setCountdownSeconds(initialCountdown);
+                    }}
+                    className="p-2 rounded-full bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                    title="Reset Timer"
+                >
+                    <RotateCcw className="w-4 h-4" />
+                </button>
+
+                <div className="w-px h-6 bg-gray-700 mx-2"></div>
+
+                <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Set Countdown:</span>
+                    <button onClick={() => setInitialCountdown(prev => Math.max(60, prev - 60))} className="p-1 text-gray-400 hover:text-white"><Minus className="w-4 h-4" /></button>
+                    <span className="text-sm font-mono font-bold text-white w-8 text-center">{initialCountdown / 60}m</span>
+                    <button onClick={() => setInitialCountdown(prev => prev + 60)} className="p-1 text-gray-400 hover:text-white"><Plus className="w-4 h-4" /></button>
                 </div>
             </div>
 
-            {/* Countdown */}
-            <div className="flex flex-col items-center p-5 bg-gray-950/80 backdrop-blur-md border border-gray-800 rounded-3xl shadow-[0_0_30px_rgba(0,0,0,0.5)] min-w-[180px]">
-                <div className="flex items-center gap-2 mb-3 text-gray-500">
-                    <Timer className="w-5 h-5" />
-                    <span className="text-sm font-bold uppercase tracking-widest">Time Left</span>
+            <div className="flex items-center justify-center gap-8">
+                {/* Stopwatch */}
+                <div className="flex flex-col items-center p-5 bg-gray-950/80 backdrop-blur-md border border-gray-800 rounded-3xl shadow-[0_0_30px_rgba(0,0,0,0.5)] min-w-[180px]">
+                    <div className="flex items-center gap-2 mb-3 text-gray-500">
+                        <Clock className="w-5 h-5" />
+                        <span className="text-sm font-bold uppercase tracking-widest">Time Taken</span>
+                    </div>
+                    <div className="text-5xl font-mono font-bold text-blue-400 tracking-widest drop-shadow-[0_0_12px_rgba(59,130,246,0.6)]">
+                        {formatTime(seconds)}
+                    </div>
                 </div>
-                <div className={`text-5xl font-mono font-bold tracking-widest ${countdownSeconds <= 10 ? 'text-red-500 animate-pulse drop-shadow-[0_0_12px_rgba(239,68,68,0.6)]' : 'text-green-400 drop-shadow-[0_0_12px_rgba(74,222,128,0.6)]'}`}>
-                    {formatTime(countdownSeconds)}
+
+                {/* Countdown */}
+                <div className="flex flex-col items-center p-5 bg-gray-950/80 backdrop-blur-md border border-gray-800 rounded-3xl shadow-[0_0_30px_rgba(0,0,0,0.5)] min-w-[180px]">
+                    <div className="flex items-center gap-2 mb-3 text-gray-500">
+                        <Timer className="w-5 h-5" />
+                        <span className="text-sm font-bold uppercase tracking-widest">Time Left</span>
+                    </div>
+                    <div className={`text-5xl font-mono font-bold tracking-widest ${countdownSeconds <= 10 && countdownSeconds > 0 ? 'text-red-500 animate-pulse drop-shadow-[0_0_12px_rgba(239,68,68,0.6)]' : countdownSeconds === 0 ? 'text-red-600 drop-shadow-[0_0_12px_rgba(220,38,38,0.8)]' : 'text-green-400 drop-shadow-[0_0_12px_rgba(74,222,128,0.6)]'}`}>
+                        {formatTime(countdownSeconds)}
+                    </div>
                 </div>
             </div>
         </div>
@@ -410,11 +448,18 @@ export default function JEESection() {
             if (optText === answer) return i;
         }
 
-        // Try if answer contains LaTeX and option contains same LaTeX
+        // Try if answer contains LaTeX and option contains same LaTeX (with normalization)
+        const normalizeLatex = (s: string) => {
+            return s.toLowerCase()
+                .replace(/\\text\s*\{([^}]+)\}/g, '$1') // Extract text from \text{...}
+                .replace(/\$/g, '') // Remove all $ signs
+                .replace(/\s+/g, '') // Remove spaces
+                .trim();
+        };
+
+        const ansNormalized = normalizeLatex(answer);
         for (let i = 0; i < q.options.length; i++) {
-            const optText = q.options[i].trim().toLowerCase().replace(/\s+/g, '');
-            const ansClean = answer.replace(/\s+/g, '');
-            if (optText === ansClean) return i;
+            if (normalizeLatex(q.options[i]) === ansNormalized) return i;
         }
 
         // Try matching by option letter: "(a)", "(b)", "(c)", "(d)" or "a)", "b)", etc.
@@ -608,7 +653,7 @@ export default function JEESection() {
                                 </div>
 
                                 {/* Question Text */}
-                                <div className="text-3xl leading-relaxed mb-8 text-gray-100">
+                                <div className="text-xl leading-relaxed mb-8 text-gray-100">
                                     <LatexWithImages>{currentQuestion.text}</LatexWithImages>
                                 </div>
 
@@ -631,9 +676,9 @@ export default function JEESection() {
                                             key={idx}
                                             onClick={() => handleOptionClick(idx)}
                                             disabled={selectedOption !== null}
-                                            className={`w-full text-left flex items-start gap-4 p-5 rounded-xl border-2 transition-all duration-300 ${getOptionStyle(idx)}`}
+                                            className={`w-full text-left flex items-start gap-4 p-4 rounded-xl border-2 transition-all duration-300 ${getOptionStyle(idx)}`}
                                         >
-                                            <span className={`flex-shrink-0 w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold border-2 transition-all duration-300 ${
+                                            <span className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold border-2 transition-all duration-300 ${
                                                 selectedOption === null
                                                     ? 'border-gray-500 text-gray-400'
                                                     : idx === correctIdx
@@ -650,7 +695,7 @@ export default function JEESection() {
                                                     optionLabels[idx]
                                                 )}
                                             </span>
-                                            <span className="text-2xl leading-relaxed pt-2.5 flex-1">
+                                            <span className="text-lg leading-relaxed pt-1.5 flex-1">
                                                 <LatexWithImages>{opt}</LatexWithImages>
                                             </span>
                                         </button>
