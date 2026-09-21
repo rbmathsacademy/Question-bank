@@ -482,8 +482,17 @@ export default function JEESection() {
 
             {/* ─── Main Content: Split View ─── */}
             <div className="flex-1 flex min-h-0">
-                {/* ─── Left Panel: Questions ─── */}
-                <div className="w-[55%] flex flex-col border-r border-gray-800">
+                {/* ─── Left Panel: Blank Scratchpad ─── */}
+                <div className="w-1/2 bg-black relative border-r border-gray-800">
+                    {/* Watermark */}
+                    <div className="absolute bottom-8 right-8 text-right select-none pointer-events-none opacity-20">
+                        <p className="text-3xl font-bold text-white tracking-wide">© RB Maths Academy</p>
+                        <p className="text-2xl font-semibold text-gray-300 mt-1">Dr. Ritwick Banerjee</p>
+                    </div>
+                </div>
+
+                {/* ─── Right Panel: Questions ─── */}
+                <div className="w-1/2 flex flex-col">
                     <div ref={questionPanelRef} className="flex-1 overflow-y-auto p-6 pb-24">
                         {loading ? (
                             <div className="flex items-center justify-center h-full">
@@ -508,6 +517,11 @@ export default function JEESection() {
                                     <span className="text-gray-500 text-sm">{currentQuestion.topic}</span>
                                     {currentQuestion.subtopic && (
                                         <span className="text-gray-600 text-xs">• {currentQuestion.subtopic}</span>
+                                    )}
+                                    {(currentQuestion.examNames && currentQuestion.examNames.length > 0) && (
+                                        <span className="bg-teal-900/60 text-teal-300 text-xs font-semibold px-2 py-0.5 rounded-md border border-teal-700/50">
+                                            {currentQuestion.examNames.join(', ')}
+                                        </span>
                                     )}
                                     {currentQuestion.marks && (
                                         <span className="text-yellow-500 text-xs ml-auto">[{currentQuestion.marks} mark{currentQuestion.marks > 1 ? 's' : ''}]</span>
@@ -614,7 +628,6 @@ export default function JEESection() {
                             </button>
 
                             <div className="flex items-center gap-2">
-                                {/* Quick jump dots (show up to 10 around current) */}
                                 {Array.from({ length: Math.min(totalQuestions, 15) }, (_, i) => {
                                     const start = Math.max(0, Math.min(currentIndex - 7, totalQuestions - 15));
                                     const qIdx = start + i;
@@ -649,11 +662,6 @@ export default function JEESection() {
                             </button>
                         </div>
                     )}
-                </div>
-
-                {/* ─── Right Panel: Blank Scratchpad ─── */}
-                <div className="w-[45%] bg-black">
-                    {/* Intentionally blank — for rough work during live class */}
                 </div>
             </div>
         </div>
