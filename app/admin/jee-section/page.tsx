@@ -121,28 +121,41 @@ interface Question {
     batches?: string[];
 }
 
-const LiveTimer = ({ isRunning, resetKey }: { isRunning: boolean, resetKey: number }) => {
-    const [seconds, setSeconds] = useState(0);
-    const [initialCountdown, setInitialCountdown] = useState(120); // 2 minutes default
-    const [countdownSeconds, setCountdownSeconds] = useState(120); 
-    const [isTimerActive, setIsTimerActive] = useState(false); // Manually controlled
+const LiveTimersSide = ({ isRunning, resetKey }: { isRunning: boolean, resetKey: number }) => {
+    // Stopwatch state
+    const [swSeconds, setSwSeconds] = useState(0);
+    const [isSwActive, setIsSwActive] = useState(false);
+
+    // Countdown state
+    const [initialCountdown, setInitialCountdown] = useState(120);
+    const [cdSeconds, setCdSeconds] = useState(120);
+    const [isCdActive, setIsCdActive] = useState(false);
 
     useEffect(() => {
-        setSeconds(0);
-        setCountdownSeconds(initialCountdown);
-        setIsTimerActive(false); // Pause on reset
+        setSwSeconds(0);
+        setIsSwActive(false);
+
+        setCdSeconds(initialCountdown);
+        setIsCdActive(false);
     }, [resetKey, initialCountdown]);
 
     useEffect(() => {
-        // If the question is answered (isRunning == false), stop the timer
-        if (!isRunning || !isTimerActive) return;
-        
-        const interval = setInterval(() => {
-            setSeconds(prev => prev + 1);
-            setCountdownSeconds(prev => (prev > 0 ? prev - 1 : 0));
-        }, 1000);
-        return () => clearInterval(interval);
-    }, [isRunning, isTimerActive, resetKey]);
+        if (!isRunning) return;
+        let swInterval: NodeJS.Timeout;
+        if (isSwActive) {
+            swInterval = setInterval(() => setSwSeconds(prev => prev + 1), 1000);
+        }
+        return () => clearInterval(swInterval);
+    }, [isRunning, isSwActive]);
+
+    useEffect(() => {
+        if (!isRunning) return;
+        let cdInterval: NodeJS.Timeout;
+        if (isCdActive) {
+            cdInterval = setInterval(() => setCdSeconds(prev => (prev > 0 ? prev - 1 : 0)), 1000);
+        }
+        return () => clearInterval(cdInterval);
+    }, [isRunning, isCdActive]);
 
     const formatTime = (totalSeconds: number) => {
         const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
@@ -150,61 +163,59 @@ const LiveTimer = ({ isRunning, resetKey }: { isRunning: boolean, resetKey: numb
         return `${m}:${s}`;
     };
 
-    if (!isRunning) return null; // Disappears when not running (i.e., after option is clicked)
+    if (!isRunning) return null;
 
     return (
-        <div className="flex flex-col items-center gap-4 mt-6 mb-2 animate-in fade-in zoom-in duration-500">
-            {/* Timer Controls */}
-            <div className="flex items-center gap-4 bg-gray-900 px-4 py-2 rounded-full border border-gray-700">
-                <button 
-                    onClick={() => setIsTimerActive(!isTimerActive)}
-                    className={`p-2 rounded-full flex items-center justify-center transition-colors ${isTimerActive ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'}`}
-                    title={isTimerActive ? "Pause Timer" : "Start Timer"}
-                >
-                    {isTimerActive ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
-                </button>
-                <button 
-                    onClick={() => {
-                        setIsTimerActive(false);
-                        setSeconds(0);
-                        setCountdownSeconds(initialCountdown);
-                    }}
-                    className="p-2 rounded-full bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
-                    title="Reset Timer"
-                >
-                    <RotateCcw className="w-4 h-4" />
-                </button>
-
-                <div className="w-px h-6 bg-gray-700 mx-2"></div>
-
-                <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Set Countdown:</span>
-                    <button onClick={() => setInitialCountdown(prev => Math.max(60, prev - 60))} className="p-1 text-gray-400 hover:text-white"><Minus className="w-4 h-4" /></button>
-                    <span className="text-sm font-mono font-bold text-white w-8 text-center">{initialCountdown / 60}m</span>
-                    <button onClick={() => setInitialCountdown(prev => prev + 60)} className="p-1 text-gray-400 hover:text-white"><Plus className="w-4 h-4" /></button>
+        <div className="flex flex-col gap-6 animate-in fade-in zoom-in duration-500 w-full shrink-0">
+            {/* Stopwatch */}
+            <div className="flex flex-col items-center p-4 bg-gray-950/80 backdrop-blur-md border border-gray-800 rounded-3xl shadow-[0_0_20px_rgba(0,0,0,0.5)]">
+                <div className="flex items-center gap-2 mb-2 text-gray-500">
+                    <Clock className="w-4 h-4" />
+                    <span className="text-xs font-bold uppercase tracking-widest">Time Taken</span>
+                </div>
+                <div className="text-4xl font-mono font-bold text-blue-400 tracking-widest drop-shadow-[0_0_12px_rgba(59,130,246,0.6)] mb-4">
+                    {formatTime(swSeconds)}
+                </div>
+                <div className="flex items-center gap-3">
+                    <button onClick={() => setIsSwActive(!isSwActive)} className={`p-2.5 rounded-full transition-colors ${isSwActive ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'}`}>
+                        {isSwActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                    </button>
+                    <button onClick={() => { setIsSwActive(false); setSwSeconds(0); }} className="p-2.5 rounded-full bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
+                        <RotateCcw className="w-4 h-4" />
+                    </button>
                 </div>
             </div>
 
-            <div className="flex items-center justify-center gap-8">
-                {/* Stopwatch */}
-                <div className="flex flex-col items-center p-5 bg-gray-950/80 backdrop-blur-md border border-gray-800 rounded-3xl shadow-[0_0_30px_rgba(0,0,0,0.5)] min-w-[180px]">
-                    <div className="flex items-center gap-2 mb-3 text-gray-500">
-                        <Clock className="w-5 h-5" />
-                        <span className="text-sm font-bold uppercase tracking-widest">Time Taken</span>
-                    </div>
-                    <div className="text-5xl font-mono font-bold text-blue-400 tracking-widest drop-shadow-[0_0_12px_rgba(59,130,246,0.6)]">
-                        {formatTime(seconds)}
-                    </div>
+            {/* Countdown */}
+            <div className="flex flex-col items-center p-4 bg-gray-950/80 backdrop-blur-md border border-gray-800 rounded-3xl shadow-[0_0_20px_rgba(0,0,0,0.5)]">
+                <div className="flex items-center gap-2 mb-2 text-gray-500">
+                    <Timer className="w-4 h-4" />
+                    <span className="text-xs font-bold uppercase tracking-widest">Time Left</span>
+                </div>
+                
+                <div className={`text-4xl font-mono font-bold tracking-widest mb-4 ${cdSeconds <= 10 && cdSeconds > 0 ? 'text-red-500 animate-pulse drop-shadow-[0_0_12px_rgba(239,68,68,0.6)]' : cdSeconds === 0 ? 'text-red-600 drop-shadow-[0_0_12px_rgba(220,38,38,0.8)]' : 'text-green-400 drop-shadow-[0_0_12px_rgba(74,222,128,0.6)]'}`}>
+                    {formatTime(cdSeconds)}
                 </div>
 
-                {/* Countdown */}
-                <div className="flex flex-col items-center p-5 bg-gray-950/80 backdrop-blur-md border border-gray-800 rounded-3xl shadow-[0_0_30px_rgba(0,0,0,0.5)] min-w-[180px]">
-                    <div className="flex items-center gap-2 mb-3 text-gray-500">
-                        <Timer className="w-5 h-5" />
-                        <span className="text-sm font-bold uppercase tracking-widest">Time Left</span>
+                <div className="flex flex-col items-center gap-4 w-full">
+                    <div className="flex items-center gap-3">
+                        <button onClick={() => setIsCdActive(!isCdActive)} className={`p-2.5 rounded-full transition-colors ${isCdActive ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'}`}>
+                            {isCdActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                        </button>
+                        <button onClick={() => { setIsCdActive(false); setCdSeconds(initialCountdown); }} className="p-2.5 rounded-full bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
+                            <RotateCcw className="w-4 h-4" />
+                        </button>
                     </div>
-                    <div className={`text-5xl font-mono font-bold tracking-widest ${countdownSeconds <= 10 && countdownSeconds > 0 ? 'text-red-500 animate-pulse drop-shadow-[0_0_12px_rgba(239,68,68,0.6)]' : countdownSeconds === 0 ? 'text-red-600 drop-shadow-[0_0_12px_rgba(220,38,38,0.8)]' : 'text-green-400 drop-shadow-[0_0_12px_rgba(74,222,128,0.6)]'}`}>
-                        {formatTime(countdownSeconds)}
+
+                    <div className="w-full h-px bg-gray-800 my-1"></div>
+
+                    <div className="flex items-center justify-between w-full px-2">
+                        <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Set:</span>
+                        <div className="flex items-center gap-1">
+                            <button onClick={() => setInitialCountdown(p => Math.max(60, p - 60))} className="p-1 text-gray-400 hover:text-white"><Minus className="w-3 h-3" /></button>
+                            <span className="text-xs font-mono font-bold text-gray-300 w-6 text-center">{initialCountdown / 60}m</span>
+                            <button onClick={() => setInitialCountdown(p => p + 60)} className="p-1 text-gray-400 hover:text-white"><Plus className="w-3 h-3" /></button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -235,6 +246,7 @@ export default function JEESection() {
 
     // Fullscreen
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [zoomLevel, setZoomLevel] = useState(1);
 
     const toggleFullscreen = useCallback(() => {
         if (!document.fullscreenElement) {
@@ -588,10 +600,17 @@ export default function JEESection() {
 
                     {/* Question counter */}
                     {totalQuestions > 0 && (
-                        <div className="flex-shrink-0 text-sm text-gray-400 font-mono">
+                        <div className="flex-shrink-0 text-sm text-gray-400 font-mono flex items-center mr-2">
                             Q {currentIndex + 1} / {totalQuestions}
                         </div>
                     )}
+
+                    {/* Zoom controls */}
+                    <div className="flex items-center gap-1 mr-2 bg-gray-900 rounded-lg p-0.5 border border-gray-800">
+                        <button onClick={() => setZoomLevel(z => Math.max(0.5, z - 0.1))} className="p-1 text-gray-400 hover:text-white" title="Zoom Out"><Minus className="w-4 h-4" /></button>
+                        <span className="text-xs text-gray-400 font-mono w-9 text-center">{Math.round(zoomLevel * 100)}%</span>
+                        <button onClick={() => setZoomLevel(z => Math.min(2.5, z + 0.1))} className="p-1 text-gray-400 hover:text-white" title="Zoom In"><Plus className="w-4 h-4" /></button>
+                    </div>
 
                     {/* Fullscreen toggle */}
                     <button
@@ -632,16 +651,13 @@ export default function JEESection() {
                                 </div>
                             </div>
                         ) : currentQuestion ? (
-                            <div>
+                            <div style={{ zoom: zoomLevel }}>
                                 {/* Question Number + Topic */}
                                 <div className="flex items-center gap-3 mb-4">
                                     <span className="bg-blue-600 text-white text-lg font-bold px-3 py-1 rounded-lg">
                                         Q{currentIndex + 1}
                                     </span>
                                     <span className="text-gray-500 text-lg">{currentQuestion.topic}</span>
-                                    {currentQuestion.subtopic && (
-                                        <span className="text-gray-600 text-base">• {currentQuestion.subtopic}</span>
-                                    )}
                                     {(currentQuestion.examNames && currentQuestion.examNames.length > 0) && (
                                         <span className="bg-teal-900/60 text-teal-300 text-base font-semibold px-2 py-0.5 rounded-md border border-teal-700/50">
                                             {currentQuestion.examNames.join(', ')}
@@ -669,41 +685,46 @@ export default function JEESection() {
                                     </div>
                                 )}
 
-                                {/* Options */}
-                                <div className="space-y-3 mb-8">
-                                    {currentQuestion.options?.map((opt, idx) => (
-                                        <button
-                                            key={idx}
-                                            onClick={() => handleOptionClick(idx)}
-                                            disabled={selectedOption !== null}
-                                            className={`w-full text-left flex items-start gap-4 p-4 rounded-xl border-2 transition-all duration-300 ${getOptionStyle(idx)}`}
-                                        >
-                                            <span className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold border-2 transition-all duration-300 ${
-                                                selectedOption === null
-                                                    ? 'border-gray-500 text-gray-400'
-                                                    : idx === correctIdx
-                                                        ? 'border-green-400 text-green-400 bg-green-900/40'
-                                                        : idx === selectedOption
-                                                            ? 'border-red-400 text-red-400 bg-red-900/40'
-                                                            : 'border-gray-700 text-gray-600'
-                                            }`}>
-                                                {selectedOption !== null && idx === correctIdx ? (
-                                                    <Check className="h-6 w-6" />
-                                                ) : selectedOption !== null && idx === selectedOption && idx !== correctIdx ? (
-                                                    <X className="h-6 w-6" />
-                                                ) : (
-                                                    optionLabels[idx]
-                                                )}
-                                            </span>
-                                            <span className="text-lg leading-relaxed pt-1.5 flex-1">
-                                                <LatexWithImages>{opt}</LatexWithImages>
-                                            </span>
-                                        </button>
-                                    ))}
+                                {/* Options and Timer */}
+                                <div className="flex gap-6 mb-8">
+                                    {/* Options column */}
+                                    <div className="w-2/3 space-y-3">
+                                        {currentQuestion.options?.map((opt, idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => handleOptionClick(idx)}
+                                                disabled={selectedOption !== null}
+                                                className={`w-full text-left flex items-start gap-4 p-4 rounded-xl border-2 transition-all duration-300 ${getOptionStyle(idx)} break-words whitespace-normal`}
+                                            >
+                                                <span className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold border-2 transition-all duration-300 mt-0.5 ${
+                                                    selectedOption === null
+                                                        ? 'border-gray-500 text-gray-400'
+                                                        : idx === correctIdx
+                                                            ? 'border-green-400 text-green-400 bg-green-900/40'
+                                                            : idx === selectedOption
+                                                                ? 'border-red-400 text-red-400 bg-red-900/40'
+                                                                : 'border-gray-700 text-gray-600'
+                                                }`}>
+                                                    {selectedOption !== null && idx === correctIdx ? (
+                                                        <Check className="h-6 w-6" />
+                                                    ) : selectedOption !== null && idx === selectedOption && idx !== correctIdx ? (
+                                                        <X className="h-6 w-6" />
+                                                    ) : (
+                                                        optionLabels[idx]
+                                                    )}
+                                                </span>
+                                                <span className="text-lg leading-relaxed pt-1.5 flex-1 break-words overflow-hidden">
+                                                    <LatexWithImages>{opt}</LatexWithImages>
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* Timer column */}
+                                    <div className="w-1/3 flex justify-end items-start">
+                                        <LiveTimersSide isRunning={selectedOption === null} resetKey={currentIndex} />
+                                    </div>
                                 </div>
-
-                                <LiveTimer isRunning={selectedOption === null} resetKey={currentIndex} />
-
                                 {/* Answer */}
                                 {showExplanation && currentQuestion.answer && (
                                     <div className="mb-4 p-4 rounded-xl bg-blue-950/40 border border-blue-800">
