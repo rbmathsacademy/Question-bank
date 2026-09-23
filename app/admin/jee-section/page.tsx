@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { ChevronDown, X, Check, ArrowLeft, ArrowRight, Home, Loader2, Maximize2, Minimize2, Timer, RotateCcw, Clock, Play, Pause, Plus, Minus } from 'lucide-react';
 import Latex from 'react-latex-next';
 import LatexWithImages from '../../components/LatexWithImages';
+import Scratchpad from '../../../components/Scratchpad';
 import 'katex/dist/katex.min.css';
 
 // ─── Inline MultiSelect (dark theme, compact) ───
@@ -625,8 +626,10 @@ export default function JEESection() {
 
             {/* ─── Main Content: Split View ─── */}
             <div className="flex-1 flex min-h-0">
-                {/* ─── Left Panel: Blank Scratchpad ─── */}
+                {/* ─── Left Panel: Interactive Scratchpad ─── */}
                 <div className="w-1/2 bg-black relative border-r border-gray-800">
+                    <Scratchpad resetKey={currentIndex} />
+                    
                     {/* Watermark */}
                     <div className="absolute bottom-8 right-8 text-right select-none pointer-events-none opacity-20">
                         <p className="text-3xl font-bold text-white tracking-wide">© RB Maths Academy</p>
