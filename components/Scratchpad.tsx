@@ -63,11 +63,10 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
     const isDrawing = useRef(false);
     const lastRenderTime = useRef(0);
     const pendingRender = useRef(false);
+    const rAFId = useRef(0);
+    
+    // Canvases
     const bgCanvasRef = useRef<HTMLCanvasElement | null>(null);
-
-    useEffect(() => {
-        bgCanvasRef.current = document.createElement('canvas');
-    }, []);
 
     const renderStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
         if (stroke.points.length === 0) return;
@@ -88,17 +87,13 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
 
     const updateBgCanvas = useCallback(() => {
         const bgCanvas = bgCanvasRef.current;
-        const mainCanvas = canvasRef.current;
-        if (!bgCanvas || !mainCanvas) return;
+        if (!bgCanvas) return;
         
-        bgCanvas.width = mainCanvas.width;
-        bgCanvas.height = mainCanvas.height;
         const ctx = bgCanvas.getContext('2d');
         if (!ctx) return;
         
         const dpr = window.devicePixelRatio || 1;
-        ctx.scale(dpr, dpr);
-        ctx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+        ctx.clearRect(0, 0, bgCanvas.width / dpr, bgCanvas.height / dpr);
         
         strokes.forEach(stroke => renderStroke(ctx, stroke));
     }, [strokes]);
@@ -113,17 +108,13 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
     // ─── DRAWING ENGINE ───
     const drawActive = useCallback(() => {
         const canvas = canvasRef.current;
-        const bgCanvas = bgCanvasRef.current;
-        if (!canvas || !bgCanvas) return;
+        if (!canvas) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
         const dpr = window.devicePixelRatio || 1;
         ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
         
-        // 1. Draw background (all past strokes)
-        ctx.drawImage(bgCanvas, 0, 0, canvas.width / dpr, canvas.height / dpr);
-
         // 2. Draw current stroke
         if (currentStroke.current) {
             renderStroke(ctx, currentStroke.current);
@@ -134,12 +125,15 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
     useEffect(() => {
         const container = containerRef.current;
         const canvas = canvasRef.current;
-        if (!container || !canvas) return;
+        const bgCanvas = bgCanvasRef.current;
+        if (!container || !canvas || !bgCanvas) return;
 
         const resizeCanvas = (e?: Event) => {
             const rect = container.getBoundingClientRect();
             // Handle high-DPI displays
             const dpr = window.devicePixelRatio || 1;
+            
+            // Size Active Canvas
             canvas.width = rect.width * dpr;
             canvas.height = rect.height * dpr;
             canvas.style.width = `${rect.width}px`;
@@ -151,6 +145,20 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
             }
+
+            // Size Background Canvas
+            bgCanvas.width = rect.width * dpr;
+            bgCanvas.height = rect.height * dpr;
+            bgCanvas.style.width = `${rect.width}px`;
+            bgCanvas.style.height = `${rect.height}px`;
+            
+            const bgCtx = bgCanvas.getContext('2d');
+            if (bgCtx) {
+                bgCtx.scale(dpr, dpr);
+                bgCtx.lineCap = 'round';
+                bgCtx.lineJoin = 'round';
+            }
+
             updateBgCanvas();
             drawActive(); // Redraw after resize
         };
@@ -234,7 +242,7 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
 
             if (!pendingRender.current) {
                 pendingRender.current = true;
-                requestAnimationFrame(() => {
+                rAFId.current = requestAnimationFrame(() => {
                     drawActive();
                     pendingRender.current = false;
                 });
@@ -248,6 +256,9 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
         (e.target as HTMLElement).releasePointerCapture(e.pointerId);
 
         if (activeTool === 'pen' && currentStroke.current) {
+            cancelAnimationFrame(rAFId.current);
+            pendingRender.current = false;
+            
             // Final render before commit
             drawActive();
 
@@ -311,10 +322,18 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
 
     return (
         <div ref={containerRef} className="absolute inset-0 overflow-hidden bg-transparent z-40 pointer-events-none">
-            {/* CANVAS */}
+            {/* BACKGROUND CANVAS (Static History) */}
+            <canvas
+                ref={bgCanvasRef}
+                className="absolute inset-0 touch-none pointer-events-none"
+                style={{ willChange: 'transform' }}
+            />
+
+            {/* ACTIVE CANVAS (Current Stroke) */}
             <canvas
                 ref={canvasRef}
                 className={`absolute inset-0 touch-none ${activeTool === 'cursor' ? 'pointer-events-none' : 'pointer-events-auto cursor-crosshair'}`}
+                style={{ willChange: 'transform' }}
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
