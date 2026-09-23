@@ -31,22 +31,22 @@ export default function MultiSelect({ options, selected, onChange, placeholder }
             ? selected.filter((item) => item !== value)
             : [...selected, value];
 
-        // If selecting something other than "No Topic", remove "No Topic"
-        if (value !== "No Topic" && !selected.includes(value)) {
-            newSelected = newSelected.filter(item => item !== "No Topic");
-        }
-
-        // If deselecting the last real topic, add "No Topic" back
-        if (selected.includes(value) && newSelected.length === 0) {
-            newSelected = ["No Topic"];
-        }
+        // No forced No Topic logic
 
         onChange(newSelected);
     };
 
+    const formatLabel = (val: string) => {
+        if (val === 'fill_in_the_blanks') return 'Fill in the blanks';
+        if (val === 'mcq') return 'MCQ';
+        if (val === 'broad') return 'Broad';
+        if (val === 'short') return 'Short';
+        return val;
+    };
+
     // Filter options based on search term
     const filteredOptions = options.filter((opt) =>
-        opt.toLowerCase().includes(searchTerm.toLowerCase())
+        formatLabel(opt).toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return (
@@ -59,7 +59,7 @@ export default function MultiSelect({ options, selected, onChange, placeholder }
                     {selected.length === 0 ? <span className="text-gray-500 italic">{placeholder}</span> :
                         selected.length > 2 ? <span className="text-white">{selected.length} selected</span> :
                             selected.map((s) => (
-                                <span key={s} className="bg-blue-900 text-blue-200 px-1.5 py-0.5 rounded text-[10px]">{s}</span>
+                                <span key={s} className="bg-blue-900 text-blue-200 px-1.5 py-0.5 rounded text-[10px]">{formatLabel(s)}</span>
                             ))}
                 </div>
                 <ChevronDown className="h-3 w-3 text-gray-400" />
@@ -102,7 +102,7 @@ export default function MultiSelect({ options, selected, onChange, placeholder }
                                     <div className={`w-3 h-3 rounded border border-gray-500 flex items-center justify-center ${selected.includes(opt) ? 'bg-blue-600 border-blue-600' : ''}`}>
                                         {selected.includes(opt) && <Check className="h-2 w-2 text-white" />}
                                     </div>
-                                    {opt}
+                                    {formatLabel(opt)}
                                 </div>
                             ))
                         )}

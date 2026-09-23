@@ -233,9 +233,9 @@ export default function JEESection() {
     const [loading, setLoading] = useState(false);
 
     // Filters
-    const [selectedTopics, setSelectedTopics] = useState<string[]>(["No Topic"]);
+    const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
     const [selectedSubtopics, setSelectedSubtopics] = useState<string[]>([]);
-    const [selectedTypes, setSelectedTypes] = useState<string[]>(['mcq']);
+    const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
     const [selectedExams, setSelectedExams] = useState<string[]>([]);
     const [serverFilters, setServerFilters] = useState<{ topics: string[]; subtopics: string[]; examNames: string[]; batches: string[] }>({ topics: [], subtopics: [], examNames: [], batches: [] });
     const [filtersLoading, setFiltersLoading] = useState(true);

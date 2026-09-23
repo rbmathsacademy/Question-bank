@@ -51,8 +51,8 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
     
     // Tools
     const [activeTool, setActiveTool] = useState<'pen' | 'eraser' | 'cursor'>('pen');
-    const [activeColor, setActiveColor] = useState('#FFFFFF');
-    const [strokeWidth, setStrokeWidth] = useState(3);
+    const [activeColor, setActiveColor] = useState('#FFF176');
+    const [strokeWidth, setStrokeWidth] = useState(1);
     const eraserWidth = 20;
 
     // UI State
@@ -255,8 +255,8 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
             const newStrokes = [...strokes, currentStroke.current];
             setStrokes(newStrokes);
             pushToHistory(newStrokes);
-            currentStroke.current = null;
         }
+        currentStroke.current = null;
     };
 
     // ─── ERASER LOGIC ───
@@ -324,7 +324,24 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
 
             {/* COLOR OPTIONS POPUP */}
             {showColors && activeTool === 'pen' && (
-                <div className="absolute bottom-20 left-4 z-50 bg-gray-900/95 backdrop-blur-md border border-gray-700 p-3 rounded-xl shadow-2xl pointer-events-auto">
+                <div className="absolute bottom-20 left-4 z-50 bg-gray-900/95 backdrop-blur-md border border-gray-700 p-3 rounded-xl shadow-2xl pointer-events-auto flex flex-col gap-4">
+                    
+                    {/* Thickness Selector */}
+                    <div className="flex items-center justify-between px-2 pb-3 border-b border-gray-700">
+                        <span className="text-xs text-gray-400 font-medium">Thickness</span>
+                        <div className="flex items-center gap-3">
+                            {[1, 2, 3].map(w => (
+                                <button
+                                    key={w}
+                                    onClick={() => { setStrokeWidth(w); setShowColors(false); }}
+                                    className={`w-6 h-6 flex items-center justify-center rounded-full transition-colors ${strokeWidth === w ? 'bg-gray-700' : 'hover:bg-gray-800'}`}
+                                >
+                                    <div className="bg-white rounded-full" style={{ width: w * 3 + 2, height: w * 3 + 2 }} />
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
                     <div className="flex flex-col gap-2 justify-center">
                         <div className="grid grid-cols-6 gap-2">
                             {COLORS.map((colorSet) => (
@@ -354,7 +371,6 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
                             setShowColors(!showColors);
                         } else {
                             setActiveTool('pen');
-                            setActiveColor('#FFF176'); // Yellow default
                             setShowColors(false);
                         }
                     }}
