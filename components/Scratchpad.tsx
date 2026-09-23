@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Undo2, Redo2, Eraser, PenTool, ChevronLeft, ChevronRight, Palette, MousePointer2 } from 'lucide-react';
+import { Undo2, Redo2, Eraser, PenTool, MousePointer2 } from 'lucide-react';
+import { getStroke } from 'perfect-freehand';
 
-type Point = { x: number; y: number };
+type Point = { x: number; y: number; pressure?: number };
 
 type Stroke = {
     id: string;
@@ -11,6 +12,20 @@ type Stroke = {
     color: string;
     width: number;
 };
+
+function getSvgPathFromStroke(stroke: number[][]) {
+    if (!stroke.length) return "";
+    const d = stroke.reduce(
+        (acc, [x0, y0], i, arr) => {
+            const [x1, y1] = arr[(i + 1) % arr.length];
+            acc.push(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
+            return acc;
+        },
+        ["M", ...stroke[0], "Q"]
+    );
+    d.push("Z");
+    return d.join(" ");
+}
 
 const COLORS = [
     { name: 'White', variants: ['#FFFFFF', '#A0A0A0'] },
@@ -41,57 +56,79 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
     const eraserWidth = 20;
 
     // UI State
-    const [isPaletteOpen, setIsPaletteOpen] = useState(true);
+    const [showColors, setShowColors] = useState(false);
 
     // Drawing Ref State (mutated during drawing for performance)
     const currentStroke = useRef<Stroke | null>(null);
     const isDrawing = useRef(false);
     const lastRenderTime = useRef(0);
+    const pendingRender = useRef(false);
+    const bgCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+    useEffect(() => {
+        bgCanvasRef.current = document.createElement('canvas');
+    }, []);
+
+    const renderStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
+        if (stroke.points.length === 0) return;
+        const rawPoints = stroke.points.map(p => [p.x, p.y, p.pressure || 0.5] as number[]);
+        const outline = getStroke(rawPoints, {
+            size: stroke.width * 2.5,
+            thinning: 0.6,
+            smoothing: 0.5,
+            streamline: 0.5,
+        });
+        const pathData = getSvgPathFromStroke(outline as number[][]);
+        if (pathData) {
+            const path = new Path2D(pathData);
+            ctx.fillStyle = stroke.color;
+            ctx.fill(path);
+        }
+    };
+
+    const updateBgCanvas = useCallback(() => {
+        const bgCanvas = bgCanvasRef.current;
+        const mainCanvas = canvasRef.current;
+        if (!bgCanvas || !mainCanvas) return;
+        
+        bgCanvas.width = mainCanvas.width;
+        bgCanvas.height = mainCanvas.height;
+        const ctx = bgCanvas.getContext('2d');
+        if (!ctx) return;
+        
+        const dpr = window.devicePixelRatio || 1;
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+        
+        strokes.forEach(stroke => renderStroke(ctx, stroke));
+    }, [strokes]);
+
+    // Sync bg canvas when strokes state changes
+    useEffect(() => {
+        updateBgCanvas();
+        drawActive();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [strokes, updateBgCanvas]);
 
     // ─── DRAWING ENGINE ───
-    const drawAllStrokes = useCallback(() => {
+    const drawActive = useCallback(() => {
         const canvas = canvasRef.current;
-        if (!canvas) return;
+        const bgCanvas = bgCanvasRef.current;
+        if (!canvas || !bgCanvas) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
         const dpr = window.devicePixelRatio || 1;
         ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+        
+        // 1. Draw background (all past strokes)
+        ctx.drawImage(bgCanvas, 0, 0, canvas.width / dpr, canvas.height / dpr);
 
-        const allStrokes = [...strokes];
+        // 2. Draw current stroke
         if (currentStroke.current) {
-            allStrokes.push(currentStroke.current);
+            renderStroke(ctx, currentStroke.current);
         }
-
-        allStrokes.forEach(stroke => {
-            if (stroke.points.length === 0) return;
-            
-            ctx.beginPath();
-            ctx.strokeStyle = stroke.color;
-            ctx.lineWidth = stroke.width;
-
-            if (stroke.points.length === 1) {
-                // Draw dot
-                const p = stroke.points[0];
-                ctx.fillStyle = stroke.color;
-                ctx.arc(p.x, p.y, stroke.width / 2, 0, Math.PI * 2);
-                ctx.fill();
-                return;
-            }
-
-            // Quadratic Bezier Curve Smoothing
-            ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-            for (let i = 1; i < stroke.points.length - 1; i++) {
-                const xc = (stroke.points[i].x + stroke.points[i + 1].x) / 2;
-                const yc = (stroke.points[i].y + stroke.points[i + 1].y) / 2;
-                ctx.quadraticCurveTo(stroke.points[i].x, stroke.points[i].y, xc, yc);
-            }
-            // Curve to the last point
-            const last = stroke.points[stroke.points.length - 1];
-            ctx.lineTo(last.x, last.y);
-            ctx.stroke();
-        });
-    }, [strokes]);
+    }, []);
 
     // ─── INIT & RESIZE ───
     useEffect(() => {
@@ -114,14 +151,15 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
             }
-            drawAllStrokes(); // Redraw after resize
+            updateBgCanvas();
+            drawActive(); // Redraw after resize
         };
 
         window.addEventListener('resize', resizeCanvas as EventListener);
         resizeCanvas();
 
         return () => window.removeEventListener('resize', resizeCanvas as EventListener);
-    }, [drawAllStrokes]);
+    }, [updateBgCanvas, drawActive]);
 
     // ─── CLEAR ON RESET ───
     useEffect(() => {
@@ -134,17 +172,14 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
         }
     }, [resetKey]);
 
-    // Sync canvas when strokes state changes
-    useEffect(() => {
-        drawAllStrokes();
-    }, [strokes, drawAllStrokes]);
 
     // ─── EVENT HANDLERS ───
-    const getPointerPos = (e: React.PointerEvent): Point => {
+    const getPointerPos = (clientX: number, clientY: number, pressure?: number): Point => {
         const rect = canvasRef.current!.getBoundingClientRect();
         return {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
+            x: clientX - rect.left,
+            y: clientY - rect.top,
+            pressure: pressure || 0.5
         };
     };
 
@@ -162,7 +197,7 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
         if (!canvasRef.current || activeTool === 'cursor') return;
         (e.target as HTMLElement).setPointerCapture(e.pointerId);
         
-        const pos = getPointerPos(e);
+        const pos = getPointerPos(e.clientX, e.clientY, e.pressure);
         isDrawing.current = true;
 
         if (activeTool === 'eraser') {
@@ -175,16 +210,15 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
                 color: activeColor,
                 width: strokeWidth
             };
-            drawAllStrokes();
+            drawActive();
         }
     };
 
     const handlePointerMove = (e: React.PointerEvent) => {
         if (!isDrawing.current || activeTool === 'cursor') return;
         
-        const pos = getPointerPos(e);
-
         if (activeTool === 'eraser') {
+            const pos = getPointerPos(e.clientX, e.clientY, e.pressure);
             // eslint-disable-next-line react-hooks/purity
             const now = performance.now();
             if (now - lastRenderTime.current > 16) {
@@ -192,22 +226,18 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
                 lastRenderTime.current = now;
             }
         } else if (activeTool === 'pen' && currentStroke.current) {
-            const ctx = canvasRef.current?.getContext('2d');
-            if (ctx) {
-                const points = currentStroke.current.points;
-                const lastPoint = points[points.length - 1];
-                
-                // Draw incremental segment instantly
-                ctx.beginPath();
-                ctx.strokeStyle = currentStroke.current.color;
-                ctx.lineWidth = currentStroke.current.width;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-                ctx.moveTo(lastPoint.x, lastPoint.y);
-                ctx.lineTo(pos.x, pos.y);
-                ctx.stroke();
+            // Use getCoalescedEvents for high-frequency touch smoothing
+            const events = e.nativeEvent.getCoalescedEvents ? e.nativeEvent.getCoalescedEvents() : [e.nativeEvent];
+            events.forEach(ev => {
+                currentStroke.current!.points.push(getPointerPos(ev.clientX, ev.clientY, (ev as PointerEvent).pressure));
+            });
 
-                points.push(pos);
+            if (!pendingRender.current) {
+                pendingRender.current = true;
+                requestAnimationFrame(() => {
+                    drawActive();
+                    pendingRender.current = false;
+                });
             }
         }
     };
@@ -218,11 +248,14 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
         (e.target as HTMLElement).releasePointerCapture(e.pointerId);
 
         if (activeTool === 'pen' && currentStroke.current) {
+            // Final render before commit
+            drawActive();
+
+
             const newStrokes = [...strokes, currentStroke.current];
             setStrokes(newStrokes);
             pushToHistory(newStrokes);
             currentStroke.current = null;
-            // The useEffect will trigger a full redraw with bezier curves smoothing out the jagged incremental lines!
         }
     };
 
@@ -289,51 +322,18 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
                 onPointerLeave={handlePointerUp}
             />
 
-            {/* CURSOR BUTTON (Bottom Right of Left Panel) */}
-            <button
-                onClick={() => setActiveTool('cursor')}
-                className={`absolute bottom-6 left-[calc(50%-4rem)] z-50 p-4 rounded-full shadow-2xl transition-all pointer-events-auto border-2 ${
-                    activeTool === 'cursor' 
-                        ? 'bg-blue-600 text-white border-blue-400 scale-110' 
-                        : 'bg-gray-800 text-gray-400 border-gray-600 hover:text-white hover:bg-gray-700'
-                }`}
-                title="Pointer Mode (Click Buttons)"
-            >
-                <MousePointer2 className="w-6 h-6" />
-            </button>
-
-            {/* FLOATING PALETTE */}
-            <div className={`absolute bottom-6 left-6 z-50 flex transition-transform duration-300 ${isPaletteOpen ? 'translate-x-0' : '-translate-x-[calc(100%+1.5rem)]'}`}>
-                <div className="bg-gray-900/95 backdrop-blur-md border border-gray-700 p-2 rounded-xl shadow-2xl flex gap-3 pointer-events-auto items-center">
-                    
-                    {/* Tools */}
-                    <div className="flex flex-col gap-2 pr-3 border-r border-gray-700">
-                        <button 
-                            onClick={() => setActiveTool('pen')}
-                            className={`p-2 rounded-lg transition-colors ${activeTool === 'pen' ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
-                            title="Pen"
-                        >
-                            <PenTool className="w-4 h-4" />
-                        </button>
-                        <button 
-                            onClick={() => setActiveTool('eraser')}
-                            className={`p-2 rounded-lg transition-colors ${activeTool === 'eraser' ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
-                            title="Stroke Eraser"
-                        >
-                            <Eraser className="w-4 h-4" />
-                        </button>
-                    </div>
-
-                    {/* Colors (Narrower) */}
+            {/* COLOR OPTIONS POPUP */}
+            {showColors && activeTool === 'pen' && (
+                <div className="absolute bottom-20 left-4 z-50 bg-gray-900/95 backdrop-blur-md border border-gray-700 p-3 rounded-xl shadow-2xl pointer-events-auto">
                     <div className="flex flex-col gap-2 justify-center">
-                        <div className="grid grid-cols-6 gap-1.5">
+                        <div className="grid grid-cols-6 gap-2">
                             {COLORS.map((colorSet) => (
-                                <div key={colorSet.name} className="flex flex-col gap-1.5">
+                                <div key={colorSet.name} className="flex flex-col gap-2">
                                     {colorSet.variants.map((hex) => (
                                         <button
                                             key={hex}
-                                            onClick={() => { setActiveColor(hex); setActiveTool('pen'); }}
-                                            className={`w-6 h-6 rounded-full border-2 transition-transform ${activeColor === hex && activeTool === 'pen' ? 'scale-125 border-white shadow-[0_0_8px_rgba(255,255,255,0.6)] z-10' : 'border-transparent hover:scale-110'}`}
+                                            onClick={() => { setActiveColor(hex); setShowColors(false); }}
+                                            className={`w-7 h-7 rounded-full border-2 transition-transform ${activeColor === hex ? 'scale-125 border-white shadow-[0_0_8px_rgba(255,255,255,0.6)] z-10' : 'border-transparent hover:scale-110'}`}
                                             style={{ backgroundColor: hex }}
                                             title={colorSet.name}
                                         />
@@ -342,44 +342,69 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
                             ))}
                         </div>
                     </div>
-
-                    {/* History */}
-                    <div className="flex flex-col gap-2 pl-3 border-l border-gray-700 justify-center">
-                        <button 
-                            onClick={undo}
-                            disabled={historyStep === 0}
-                            className="p-1.5 rounded-md bg-gray-800 text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors"
-                            title="Undo"
-                        >
-                            <Undo2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                            onClick={redo}
-                            disabled={historyStep === history.length - 1}
-                            className="p-1.5 rounded-md bg-gray-800 text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors"
-                            title="Redo"
-                        >
-                            <Redo2 className="w-3.5 h-3.5" />
-                        </button>
-                    </div>
                 </div>
-            </div>
+            )}
 
-            {/* TOGGLE PALETTE BUTTON */}
-            <button
-                onClick={() => setIsPaletteOpen(!isPaletteOpen)}
-                className={`absolute bottom-8 z-50 p-2 bg-gray-800 border border-gray-600 text-white rounded-r-lg shadow-lg pointer-events-auto transition-all duration-300 hover:bg-gray-700 ${isPaletteOpen ? 'left-[calc(100%-1rem)] opacity-0 pointer-events-none' : 'left-0'}`}
-                title="Open Palette"
-            >
-                <ChevronRight className="w-4 h-4" />
-            </button>
-            <button
-                onClick={() => setIsPaletteOpen(false)}
-                className={`absolute bottom-[3.5rem] z-50 p-1 bg-gray-800 border border-gray-600 text-white rounded-full shadow-lg pointer-events-auto transition-all duration-300 hover:bg-gray-700 ${!isPaletteOpen ? 'opacity-0 pointer-events-none' : 'left-[220px]'}`}
-                title="Hide Palette"
-            >
-                <ChevronLeft className="w-3 h-3" />
-            </button>
+            {/* NEW BOTTOM ROW PALETTE */}
+            <div className="absolute bottom-4 left-4 z-50 flex gap-2 pointer-events-auto bg-gray-900/90 backdrop-blur-md p-1.5 rounded-full border border-gray-700 shadow-xl">
+                {/* Pen */}
+                <button 
+                    onClick={() => {
+                        if (activeTool === 'pen') {
+                            setShowColors(!showColors);
+                        } else {
+                            setActiveTool('pen');
+                            setActiveColor('#FFF176'); // Yellow default
+                            setShowColors(false);
+                        }
+                    }}
+                    className={`p-2.5 rounded-full transition-colors relative ${activeTool === 'pen' ? 'bg-blue-600 text-white shadow-lg' : 'bg-transparent text-gray-400 hover:text-white hover:bg-gray-800'}`}
+                    title="Pen (Click again for colors)"
+                >
+                    <PenTool className="w-5 h-5" />
+                    {activeTool === 'pen' && (
+                        <span className="absolute bottom-1 right-1 w-2.5 h-2.5 rounded-full border border-gray-900" style={{ backgroundColor: activeColor }} />
+                    )}
+                </button>
+
+                {/* Eraser */}
+                <button 
+                    onClick={() => { setActiveTool('eraser'); setShowColors(false); }}
+                    className={`p-2.5 rounded-full transition-colors ${activeTool === 'eraser' ? 'bg-blue-600 text-white shadow-lg' : 'bg-transparent text-gray-400 hover:text-white hover:bg-gray-800'}`}
+                    title="Stroke Eraser"
+                >
+                    <Eraser className="w-5 h-5" />
+                </button>
+
+                {/* Undo */}
+                <button 
+                    onClick={undo}
+                    disabled={historyStep === 0}
+                    className="p-2.5 rounded-full bg-transparent text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-800 hover:text-white transition-colors"
+                    title="Undo"
+                >
+                    <Undo2 className="w-5 h-5" />
+                </button>
+
+                {/* Redo */}
+                <button 
+                    onClick={redo}
+                    disabled={historyStep === history.length - 1}
+                    className="p-2.5 rounded-full bg-transparent text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-800 hover:text-white transition-colors"
+                    title="Redo"
+                >
+                    <Redo2 className="w-5 h-5" />
+                </button>
+
+                {/* Pointer / Cursor */}
+                <button
+                    onClick={() => { setActiveTool('cursor'); setShowColors(false); }}
+                    className={`p-2.5 rounded-full transition-colors ${activeTool === 'cursor' ? 'bg-blue-600 text-white shadow-lg' : 'bg-transparent text-gray-400 hover:text-white hover:bg-gray-800'}`}
+                    title="Pointer Mode (Click Buttons)"
+                >
+                    <MousePointer2 className="w-5 h-5" />
+                </button>
+            </div>
         </div>
     );
 }

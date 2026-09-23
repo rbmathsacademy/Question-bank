@@ -295,7 +295,7 @@ export default function JEESection() {
     };
 
     // ─── Fetch Questions ───
-    const fetchQuestions = async (email: string, filters?: { topics?: string[]; exams?: string[]; types?: string[] }) => {
+    const fetchQuestions = async (email: string, filters?: { topics?: string[]; exams?: string[] }) => {
         setLoading(true);
         try {
             const headers: any = { 'X-User-Email': email };
@@ -305,7 +305,6 @@ export default function JEESection() {
             const params = new URLSearchParams();
             if (filters?.topics && filters.topics.length > 0) params.set('topic', filters.topics.join('|||'));
             if (filters?.exams && filters.exams.length > 0) params.set('exam', filters.exams.join('|||'));
-            if (filters?.types && filters.types.length > 0) params.set('type', filters.types.join('|||'));
             const url = `/api/admin/questions${params.toString() ? '?' + params.toString() : ''}`;
             const res = await fetch(url, { headers, cache: 'no-store' });
             if (res.ok) {
@@ -328,13 +327,13 @@ export default function JEESection() {
         if (!userEmail) return;
         const actualTopics = selectedTopics.filter(t => t !== "No Topic");
         if (actualTopics.length > 0) {
-            fetchQuestions(userEmail, { topics: actualTopics, exams: selectedExams.length > 0 ? selectedExams : undefined, types: selectedTypes.length > 0 ? selectedTypes : undefined });
-        } else if (selectedExams.length > 0 || selectedTypes.length > 0) {
-            fetchQuestions(userEmail, { exams: selectedExams.length > 0 ? selectedExams : undefined, types: selectedTypes.length > 0 ? selectedTypes : undefined });
+            fetchQuestions(userEmail, { topics: actualTopics, exams: selectedExams.length > 0 ? selectedExams : undefined });
+        } else if (selectedExams.length > 0) {
+            fetchQuestions(userEmail, { exams: selectedExams.length > 0 ? selectedExams : undefined });
         } else {
             setQuestions([]);
         }
-    }, [selectedTopics, selectedExams, selectedTypes, userEmail]);
+    }, [selectedTopics, selectedExams, userEmail]);
 
     // ─── Reset viewer on filter change ───
     useEffect(() => {
@@ -399,7 +398,27 @@ export default function JEESection() {
         return Array.from(set).filter(Boolean).sort();
     }, [questions, selectedTopics, selectedSubtopics, selectedTypes, serverFilters]);
 
-    const availableTypes = ['mcq', 'broad', 'short', 'fill_in_the_blanks'];
+    const availableTypes = useMemo(() => {
+        const actualTopics = selectedTopics.filter(t => t !== "No Topic");
+        const hasNarrowing = actualTopics.length > 0 || selectedSubtopics.length > 0 || selectedExams.length > 0;
+        if (!hasNarrowing && questions.length === 0) {
+            return ['mcq', 'broad', 'short', 'fill_in_the_blanks'];
+        }
+        
+        let filtered = questions;
+        if (actualTopics.length > 0) filtered = filtered.filter(q => actualTopics.includes(q.topic));
+        if (selectedSubtopics.length > 0) filtered = filtered.filter(q => selectedSubtopics.includes(q.subtopic));
+        if (selectedExams.length > 0) {
+            filtered = filtered.filter(q => {
+                const qExams = q.examNames || (q.examName ? [q.examName] : []);
+                return qExams.some((e: string) => selectedExams.includes(e));
+            });
+        }
+        
+        const set = new Set(filtered.map(q => q.type || 'mcq'));
+        return Array.from(set).filter(Boolean).sort();
+    }, [questions, selectedTopics, selectedSubtopics, selectedExams]);
+
     // ─── Filtered Questions for Display ───
     const displayQuestions = useMemo(() => {
         if (selectedTopics.includes("No Topic") && selectedExams.length === 0 && selectedTypes.length === 0) return [];
@@ -698,16 +717,27 @@ export default function JEESection() {
                                                 ))}
                                             </div>
                                         ) : (
-                                            <div className="h-full flex items-center justify-center">
-                                                {!showAnswer ? (
-                                                    <button 
-                                                        onClick={() => { setShowAnswer(true); setShowExplanation(true); }}
-                                                        className="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-xl shadow-lg transition-transform active:scale-95"
-                                                    >
-                                                        Show Answer & Explanation
-                                                    </button>
-                                                ) : (
-                                                    <div className="text-gray-400 italic">Timers stopped. Check answer below.</div>
+                                            <div className="h-full flex flex-col items-center justify-center gap-4">
+                                                <div className="flex gap-4">
+                                                    {!showAnswer && (
+                                                        <button 
+                                                            onClick={() => setShowAnswer(true)}
+                                                            className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold shadow-lg transition-transform active:scale-95"
+                                                        >
+                                                            Show Answer
+                                                        </button>
+                                                    )}
+                                                    {!showExplanation && (
+                                                        <button 
+                                                            onClick={() => setShowExplanation(true)}
+                                                            className="px-6 py-3 bg-yellow-600 hover:bg-yellow-500 text-white rounded-xl font-bold shadow-lg transition-transform active:scale-95"
+                                                        >
+                                                            Show Explanation
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {(showAnswer || showExplanation) && (
+                                                    <div className="text-gray-400 italic">Timers stopped. Check below.</div>
                                                 )}
                                             </div>
                                         )}
@@ -715,12 +745,12 @@ export default function JEESection() {
 
                                     {/* Timer column */}
                                     <div className="w-1/3 flex justify-end items-start">
-                                        <LiveTimersSide isRunning={(currentQuestion.type === 'mcq' || !currentQuestion.type) ? selectedOption === null : !showAnswer} resetKey={currentIndex} />
+                                        <LiveTimersSide isRunning={(currentQuestion.type === 'mcq' || !currentQuestion.type) ? selectedOption === null : !(showAnswer || showExplanation)} resetKey={currentIndex} />
                                     </div>
                                 </div>
                                 
                                 {/* Answer */}
-                                {(showExplanation || showAnswer) && currentQuestion.answer && (
+                                {showAnswer && currentQuestion.answer && (
                                     <div className="mb-4 p-4 rounded-xl bg-blue-950/40 border border-blue-800">
                                         <p className="text-lg font-bold text-blue-400 mb-2">Answer</p>
                                         <div className="text-xl text-gray-200">
@@ -730,7 +760,7 @@ export default function JEESection() {
                                 )}
 
                                 {/* Explanation */}
-                                {(showExplanation || showAnswer) && currentQuestion.explanation && (
+                                {showExplanation && currentQuestion.explanation && (
                                     <div className="p-4 rounded-xl bg-gray-900 border border-gray-700">
                                         <p className="text-lg font-bold text-yellow-400 mb-3">Explanation</p>
                                         <div className="text-xl text-gray-300 leading-relaxed">
@@ -768,7 +798,7 @@ export default function JEESection() {
                                 Back
                             </button>
 
-                            <div className="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto touch-pan-x justify-center px-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                            <div className="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto touch-pan-x px-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                                 {Array.from({ length: totalQuestions }, (_, qIdx) => (
                                     <button
                                         key={qIdx}
