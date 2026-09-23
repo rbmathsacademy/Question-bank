@@ -1,15 +1,39 @@
 'use client';
 
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, ShieldCheck, User, Youtube, Globe, Lock } from 'lucide-react';
+import { ArrowRight, ShieldCheck, User, Youtube, Globe, Lock, Maximize2, Minimize2 } from 'lucide-react';
 
 export default function Home() {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        setIsFullscreen(true);
+      } else if (document.exitFullscreen) {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch (err) {
+      console.error("Fullscreen error:", err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#050b14] text-white flex flex-col justify-center relative overflow-hidden selection:bg-purple-500/30 font-sans">
 
-      {/* Admin Login - Discreet Button Top Right */}
-      <div className="absolute top-4 right-4 z-50">
-        <Link href="/admin/login" className="p-2 text-slate-600 hover:text-purple-400 transition-colors opacity-50 hover:opacity-100">
+      {/* Top Right Controls */}
+      <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
+        <button 
+          onClick={toggleFullscreen}
+          className="p-2 text-slate-600 hover:text-purple-400 transition-colors opacity-50 hover:opacity-100"
+          title="Toggle Fullscreen"
+        >
+          {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </button>
+        <Link href="/admin/login" className="p-2 text-slate-600 hover:text-purple-400 transition-colors opacity-50 hover:opacity-100" title="Admin Login">
           <Lock className="h-4 w-4" />
         </Link>
       </div>

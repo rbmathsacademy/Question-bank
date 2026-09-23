@@ -3,9 +3,25 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Loader2, ShieldCheck, Lock, Mail, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { Loader2, ShieldCheck, Lock, Mail, ArrowRight, Eye, EyeOff, Maximize2, Minimize2 } from 'lucide-react';
 
 export default function AdminLogin() {
+    const [isFullscreen, setIsFullscreen] = useState(false);
+
+    const toggleFullscreen = async () => {
+        try {
+            if (!document.fullscreenElement) {
+                await document.documentElement.requestFullscreen();
+                setIsFullscreen(true);
+            } else if (document.exitFullscreen) {
+                await document.exitFullscreen();
+                setIsFullscreen(false);
+            }
+        } catch (err) {
+            console.error("Fullscreen error:", err);
+        }
+    };
+
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [rememberMe, setRememberMe] = useState(false);
@@ -78,6 +94,17 @@ export default function AdminLogin() {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-[#050b14] text-gray-200 relative overflow-hidden">
+
+            {/* Top Right Controls */}
+            <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
+                <button 
+                    onClick={toggleFullscreen}
+                    className="p-2 text-slate-600 hover:text-emerald-400 transition-colors opacity-50 hover:opacity-100"
+                    title="Toggle Fullscreen"
+                >
+                    {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                </button>
+            </div>
 
             {/* Background Effects */}
             <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">

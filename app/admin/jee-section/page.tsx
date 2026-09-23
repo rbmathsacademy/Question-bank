@@ -235,7 +235,7 @@ export default function JEESection() {
     // Filters
     const [selectedTopics, setSelectedTopics] = useState<string[]>(["No Topic"]);
     const [selectedSubtopics, setSelectedSubtopics] = useState<string[]>([]);
-    const [selectedBatches, setSelectedBatches] = useState<string[]>([]);
+    const [selectedTypes, setSelectedTypes] = useState<string[]>(['mcq']);
     const [selectedExams, setSelectedExams] = useState<string[]>([]);
     const [serverFilters, setServerFilters] = useState<{ topics: string[]; subtopics: string[]; examNames: string[]; batches: string[] }>({ topics: [], subtopics: [], examNames: [], batches: [] });
     const [filtersLoading, setFiltersLoading] = useState(true);
@@ -244,6 +244,7 @@ export default function JEESection() {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
     const [showExplanation, setShowExplanation] = useState(false);
+    const [showAnswer, setShowAnswer] = useState(false);
 
     // Fullscreen
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -294,7 +295,7 @@ export default function JEESection() {
     };
 
     // ─── Fetch Questions ───
-    const fetchQuestions = async (email: string, filters?: { topics?: string[]; exams?: string[]; batches?: string[] }) => {
+    const fetchQuestions = async (email: string, filters?: { topics?: string[]; exams?: string[]; types?: string[] }) => {
         setLoading(true);
         try {
             const headers: any = { 'X-User-Email': email };
@@ -304,7 +305,7 @@ export default function JEESection() {
             const params = new URLSearchParams();
             if (filters?.topics && filters.topics.length > 0) params.set('topic', filters.topics.join('|||'));
             if (filters?.exams && filters.exams.length > 0) params.set('exam', filters.exams.join('|||'));
-            if (filters?.batches && filters.batches.length > 0) params.set('batch', filters.batches.join('|||'));
+            if (filters?.types && filters.types.length > 0) params.set('type', filters.types.join('|||'));
             const url = `/api/admin/questions${params.toString() ? '?' + params.toString() : ''}`;
             const res = await fetch(url, { headers, cache: 'no-store' });
             if (res.ok) {
@@ -327,41 +328,36 @@ export default function JEESection() {
         if (!userEmail) return;
         const actualTopics = selectedTopics.filter(t => t !== "No Topic");
         if (actualTopics.length > 0) {
-            fetchQuestions(userEmail, { topics: actualTopics, exams: selectedExams.length > 0 ? selectedExams : undefined, batches: selectedBatches.length > 0 ? selectedBatches : undefined });
-        } else if (selectedExams.length > 0 || selectedBatches.length > 0) {
-            fetchQuestions(userEmail, { exams: selectedExams.length > 0 ? selectedExams : undefined, batches: selectedBatches.length > 0 ? selectedBatches : undefined });
+            fetchQuestions(userEmail, { topics: actualTopics, exams: selectedExams.length > 0 ? selectedExams : undefined, types: selectedTypes.length > 0 ? selectedTypes : undefined });
+        } else if (selectedExams.length > 0 || selectedTypes.length > 0) {
+            fetchQuestions(userEmail, { exams: selectedExams.length > 0 ? selectedExams : undefined, types: selectedTypes.length > 0 ? selectedTypes : undefined });
         } else {
             setQuestions([]);
         }
-    }, [selectedTopics, selectedExams, selectedBatches, userEmail]);
+    }, [selectedTopics, selectedExams, selectedTypes, userEmail]);
 
     // ─── Reset viewer on filter change ───
     useEffect(() => {
         setCurrentIndex(0);
         setSelectedOption(null);
         setShowExplanation(false);
-    }, [selectedTopics, selectedSubtopics, selectedBatches, selectedExams]);
+        setShowAnswer(false);
+    }, [selectedTopics, selectedSubtopics, selectedTypes, selectedExams]);
 
-    // ─── Helper: filter by batches ───
-    const filterByBatches = (qs: Question[]) => {
-        if (selectedBatches.length === 0) return qs;
-        return qs.filter(q => {
-            const qBatches = q.batches || [];
-            const wantUntagged = selectedBatches.includes('Untagged');
-            const realBatches = selectedBatches.filter(b => b !== 'Untagged');
-            return (wantUntagged && qBatches.length === 0) ||
-                (realBatches.length > 0 && realBatches.some(b => qBatches.includes(b)));
-        });
+    // ─── Helper: filter by types ───
+    const filterByTypes = (qs: Question[]) => {
+        if (selectedTypes.length === 0) return qs;
+        return qs.filter(q => selectedTypes.includes(q.type || 'mcq'));
     };
 
     // ─── Cascading Filter Options ───
     const topics = useMemo(() => {
-        const hasNarrowing = selectedExams.length > 0 || selectedBatches.length > 0 || selectedSubtopics.length > 0;
+        const hasNarrowing = selectedExams.length > 0 || selectedTypes.length > 0 || selectedSubtopics.length > 0;
         if (!hasNarrowing && questions.length === 0 && serverFilters.topics.length > 0) {
             return ["No Topic", ...serverFilters.topics];
         }
         const set = new Set<string>();
-        let filtered = filterByBatches(questions);
+        let filtered = filterByTypes(questions);
         if (selectedSubtopics.length > 0) filtered = filtered.filter(q => selectedSubtopics.includes(q.subtopic));
         if (selectedExams.length > 0) {
             filtered = filtered.filter(q => {
@@ -372,11 +368,11 @@ export default function JEESection() {
         filtered.forEach(q => set.add(q.topic));
         if (!hasNarrowing && serverFilters.topics.length > 0) serverFilters.topics.forEach(t => set.add(t));
         return ["No Topic", ...Array.from(set).filter(Boolean).sort()];
-    }, [questions, selectedSubtopics, selectedExams, selectedBatches, serverFilters]);
+    }, [questions, selectedSubtopics, selectedExams, selectedTypes, serverFilters]);
 
     const subtopics = useMemo(() => {
         const actualTopics = selectedTopics.filter(t => t !== "No Topic");
-        let filtered = filterByBatches(questions);
+        let filtered = filterByTypes(questions);
         if (actualTopics.length > 0) filtered = filtered.filter(q => actualTopics.includes(q.topic));
         if (selectedExams.length > 0) {
             filtered = filtered.filter(q => {
@@ -385,14 +381,14 @@ export default function JEESection() {
             });
         }
         return Array.from(new Set(filtered.map(q => q.subtopic))).filter(Boolean).sort();
-    }, [questions, selectedTopics, selectedExams, selectedBatches]);
+    }, [questions, selectedTopics, selectedExams, selectedTypes]);
 
     const examNames = useMemo(() => {
         const actualTopics = selectedTopics.filter(t => t !== "No Topic");
-        const hasNarrowing = actualTopics.length > 0 || selectedBatches.length > 0 || selectedSubtopics.length > 0;
+        const hasNarrowing = actualTopics.length > 0 || selectedTypes.length > 0 || selectedSubtopics.length > 0;
         if (!hasNarrowing && questions.length === 0 && serverFilters.examNames.length > 0) return serverFilters.examNames;
         const set = new Set<string>();
-        let filtered = filterByBatches(questions);
+        let filtered = filterByTypes(questions);
         if (actualTopics.length > 0) filtered = filtered.filter(q => actualTopics.includes(q.topic));
         if (selectedSubtopics.length > 0) filtered = filtered.filter(q => selectedSubtopics.includes(q.subtopic));
         filtered.forEach(q => {
@@ -401,54 +397,27 @@ export default function JEESection() {
         });
         if (!hasNarrowing && serverFilters.examNames.length > 0) serverFilters.examNames.forEach(e => set.add(e));
         return Array.from(set).filter(Boolean).sort();
-    }, [questions, selectedTopics, selectedSubtopics, selectedBatches, serverFilters]);
+    }, [questions, selectedTopics, selectedSubtopics, selectedTypes, serverFilters]);
 
-    const availableBatchNames = useMemo(() => {
-        const set = new Set<string>();
-        serverFilters.batches.forEach(b => { if (b) set.add(b); });
-        const actualTopics = selectedTopics.filter(t => t !== "No Topic");
-        let filtered = questions;
-        if (actualTopics.length > 0) filtered = filtered.filter(q => actualTopics.includes(q.topic));
-        if (selectedSubtopics.length > 0) filtered = filtered.filter(q => selectedSubtopics.includes(q.subtopic));
-        if (selectedExams.length > 0) {
-            filtered = filtered.filter(q => {
-                const qExams = q.examNames || (q.examName ? [q.examName] : []);
-                return qExams.some((e: string) => selectedExams.includes(e));
-            });
-        }
-        filtered.forEach(q => {
-            if (q.batches && Array.isArray(q.batches)) q.batches.forEach(b => set.add(b));
-        });
-        return ['Untagged', ...Array.from(set).filter(Boolean).sort()];
-    }, [questions, selectedTopics, selectedSubtopics, selectedExams, serverFilters.batches]);
-
-    // ─── Filtered MCQ Questions ───
-    const mcqQuestions = useMemo(() => {
-        if (selectedTopics.includes("No Topic") && selectedExams.length === 0 && selectedBatches.length === 0) return [];
+    const availableTypes = ['mcq', 'broad', 'short', 'fill_in_the_blanks'];
+    // ─── Filtered Questions for Display ───
+    const displayQuestions = useMemo(() => {
+        if (selectedTopics.includes("No Topic") && selectedExams.length === 0 && selectedTypes.length === 0) return [];
         const actualTopics = selectedTopics.filter(t => t !== "No Topic");
         return questions.filter(q => {
-            if (q.type !== 'mcq') return false;
-            if (!q.options || q.options.length === 0) return false;
             if (actualTopics.length > 0 && !actualTopics.includes(q.topic)) return false;
             if (selectedSubtopics.length > 0 && !selectedSubtopics.includes(q.subtopic)) return false;
             if (selectedExams.length > 0) {
                 const qExams = q.examNames || (q.examName ? [q.examName] : []);
                 if (!qExams.some((e: string) => selectedExams.includes(e))) return false;
             }
-            if (selectedBatches.length > 0) {
-                const qBatches = q.batches || [];
-                const wantUntagged = selectedBatches.includes('Untagged');
-                const realBatches = selectedBatches.filter(b => b !== 'Untagged');
-                const batchMatch = (wantUntagged && qBatches.length === 0) ||
-                    (realBatches.length > 0 && realBatches.some(b => qBatches.includes(b)));
-                if (!batchMatch) return false;
-            }
+            if (selectedTypes.length > 0 && !selectedTypes.includes(q.type || 'mcq')) return false;
             return true;
         });
-    }, [questions, selectedTopics, selectedSubtopics, selectedExams, selectedBatches]);
+    }, [questions, selectedTopics, selectedSubtopics, selectedExams, selectedTypes]);
 
-    const currentQuestion = mcqQuestions[currentIndex] || null;
-    const totalQuestions = mcqQuestions.length;
+    const totalQuestions = displayQuestions.length;
+    const currentQuestion = displayQuestions[currentIndex] || null;
 
     // ─── Answer Matching ───
     const getCorrectOptionIndex = useCallback((q: Question): number => {
@@ -511,6 +480,7 @@ export default function JEESection() {
             setCurrentIndex(prev => prev + 1);
             setSelectedOption(null);
             setShowExplanation(false);
+            setShowAnswer(false);
         }
     };
 
@@ -519,6 +489,7 @@ export default function JEESection() {
             setCurrentIndex(prev => prev - 1);
             setSelectedOption(null);
             setShowExplanation(false);
+            setShowAnswer(false);
         }
     };
 
@@ -586,10 +557,10 @@ export default function JEESection() {
                             placeholder="Sub Topic"
                         />
                         <MultiSelect
-                            options={availableBatchNames}
-                            selected={selectedBatches}
-                            onChange={setSelectedBatches}
-                            placeholder="Batch"
+                            options={availableTypes}
+                            selected={selectedTypes}
+                            onChange={setSelectedTypes}
+                            placeholder="Type"
                         />
                         <MultiSelect
                             options={examNames}
@@ -625,15 +596,17 @@ export default function JEESection() {
             </div>
 
             {/* ─── Main Content: Split View ─── */}
-            <div className="flex-1 flex min-h-0">
-                {/* ─── Left Panel: Interactive Scratchpad ─── */}
+            <div className="flex-1 flex min-h-0 relative">
+                
+                {/* ─── FULL-SCREEN SCRATCHPAD OVERLAY ─── */}
+                <Scratchpad resetKey={currentIndex} />
+
+                {/* ─── Left Panel: Background for Scratchpad ─── */}
                 <div className="w-1/2 bg-black relative border-r border-gray-800">
-                    <Scratchpad resetKey={currentIndex} />
-                    
                     {/* Watermark */}
                     <div className="absolute bottom-8 right-8 text-right select-none pointer-events-none opacity-20">
-                        <p className="text-3xl font-bold text-white tracking-wide">© RB Maths Academy</p>
-                        <p className="text-2xl font-semibold text-gray-300 mt-1">Dr. Ritwick Banerjee</p>
+                        <p className="text-3xl font-bold font-serif italic text-gray-400 tracking-wide">© RB Maths Academy</p>
+                        <p className="text-2xl font-semibold font-serif italic text-gray-500 mt-1">Dr. Ritwick Banerjee</p>
                     </div>
                 </div>
 
@@ -691,45 +664,63 @@ export default function JEESection() {
                                 {/* Options and Timer */}
                                 <div className="flex gap-6 mb-8">
                                     {/* Options column */}
-                                    <div className="w-2/3 space-y-3">
-                                        {currentQuestion.options?.map((opt, idx) => (
-                                            <button
-                                                key={idx}
-                                                onClick={() => handleOptionClick(idx)}
-                                                disabled={selectedOption !== null}
-                                                className={`w-full text-left flex items-start gap-4 p-4 rounded-xl border-2 transition-all duration-300 ${getOptionStyle(idx)} break-words whitespace-normal`}
-                                            >
-                                                <span className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold border-2 transition-all duration-300 mt-0.5 ${
-                                                    selectedOption === null
-                                                        ? 'border-gray-500 text-gray-400'
-                                                        : idx === correctIdx
-                                                            ? 'border-green-400 text-green-400 bg-green-900/40'
-                                                            : idx === selectedOption
-                                                                ? 'border-red-400 text-red-400 bg-red-900/40'
-                                                                : 'border-gray-700 text-gray-600'
-                                                }`}>
-                                                    {selectedOption !== null && idx === correctIdx ? (
-                                                        <Check className="h-6 w-6" />
-                                                    ) : selectedOption !== null && idx === selectedOption && idx !== correctIdx ? (
-                                                        <X className="h-6 w-6" />
-                                                    ) : (
-                                                        optionLabels[idx]
-                                                    )}
-                                                </span>
-                                                <span className="text-lg leading-relaxed pt-1.5 flex-1 break-words overflow-hidden">
-                                                    <LatexWithImages>{opt}</LatexWithImages>
-                                                </span>
-                                            </button>
-                                        ))}
+                                    <div className="w-2/3">
+                                        {(currentQuestion.type === 'mcq' || !currentQuestion.type) ? (
+                                            <div className="space-y-3">
+                                                {currentQuestion.options?.map((opt, idx) => (
+                                                    <button
+                                                        key={idx}
+                                                        onClick={() => handleOptionClick(idx)}
+                                                        disabled={selectedOption !== null}
+                                                        className={`w-full text-left flex items-start gap-4 p-4 rounded-xl border-2 transition-all duration-300 ${getOptionStyle(idx)} break-words whitespace-normal`}
+                                                    >
+                                                        <span className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold border-2 transition-all duration-300 mt-0.5 ${
+                                                            selectedOption === null
+                                                                ? 'border-gray-500 text-gray-400'
+                                                                : idx === correctIdx
+                                                                    ? 'border-green-400 text-green-400 bg-green-900/40'
+                                                                    : idx === selectedOption
+                                                                        ? 'border-red-400 text-red-400 bg-red-900/40'
+                                                                        : 'border-gray-700 text-gray-600'
+                                                        }`}>
+                                                            {selectedOption !== null && idx === correctIdx ? (
+                                                                <Check className="h-6 w-6" />
+                                                            ) : selectedOption !== null && idx === selectedOption && idx !== correctIdx ? (
+                                                                <X className="h-6 w-6" />
+                                                            ) : (
+                                                                optionLabels[idx]
+                                                            )}
+                                                        </span>
+                                                        <span className="text-lg leading-relaxed pt-1.5 flex-1 break-words overflow-hidden">
+                                                            <LatexWithImages>{opt}</LatexWithImages>
+                                                        </span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="h-full flex items-center justify-center">
+                                                {!showAnswer ? (
+                                                    <button 
+                                                        onClick={() => { setShowAnswer(true); setShowExplanation(true); }}
+                                                        className="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-xl shadow-lg transition-transform active:scale-95"
+                                                    >
+                                                        Show Answer & Explanation
+                                                    </button>
+                                                ) : (
+                                                    <div className="text-gray-400 italic">Timers stopped. Check answer below.</div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Timer column */}
                                     <div className="w-1/3 flex justify-end items-start">
-                                        <LiveTimersSide isRunning={selectedOption === null} resetKey={currentIndex} />
+                                        <LiveTimersSide isRunning={(currentQuestion.type === 'mcq' || !currentQuestion.type) ? selectedOption === null : !showAnswer} resetKey={currentIndex} />
                                     </div>
                                 </div>
+                                
                                 {/* Answer */}
-                                {showExplanation && currentQuestion.answer && (
+                                {(showExplanation || showAnswer) && currentQuestion.answer && (
                                     <div className="mb-4 p-4 rounded-xl bg-blue-950/40 border border-blue-800">
                                         <p className="text-lg font-bold text-blue-400 mb-2">Answer</p>
                                         <div className="text-xl text-gray-200">
@@ -739,7 +730,7 @@ export default function JEESection() {
                                 )}
 
                                 {/* Explanation */}
-                                {showExplanation && currentQuestion.explanation && (
+                                {(showExplanation || showAnswer) && currentQuestion.explanation && (
                                     <div className="p-4 rounded-xl bg-gray-900 border border-gray-700">
                                         <p className="text-lg font-bold text-yellow-400 mb-3">Explanation</p>
                                         <div className="text-xl text-gray-300 leading-relaxed">
@@ -749,7 +740,7 @@ export default function JEESection() {
                                 )}
 
                                 {/* Hint (if no explanation) */}
-                                {showExplanation && !currentQuestion.explanation && currentQuestion.hint && (
+                                {(showExplanation || showAnswer) && !currentQuestion.explanation && currentQuestion.hint && (
                                     <div className="p-4 rounded-xl bg-gray-900 border border-gray-700">
                                         <p className="text-lg font-bold text-purple-400 mb-2">Hint</p>
                                         <div className="text-xl text-gray-300">
@@ -777,25 +768,20 @@ export default function JEESection() {
                                 Back
                             </button>
 
-                            <div className="flex items-center gap-2">
-                                {Array.from({ length: Math.min(totalQuestions, 15) }, (_, i) => {
-                                    const start = Math.max(0, Math.min(currentIndex - 7, totalQuestions - 15));
-                                    const qIdx = start + i;
-                                    if (qIdx >= totalQuestions) return null;
-                                    return (
-                                        <button
-                                            key={qIdx}
-                                            onClick={() => { setCurrentIndex(qIdx); setSelectedOption(null); setShowExplanation(false); }}
-                                            className={`w-7 h-7 rounded-full text-xs font-bold transition-all ${
-                                                qIdx === currentIndex
-                                                    ? 'bg-blue-600 text-white scale-110'
-                                                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
-                                            }`}
-                                        >
-                                            {qIdx + 1}
-                                        </button>
-                                    );
-                                })}
+                            <div className="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto touch-pan-x justify-center px-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                                {Array.from({ length: totalQuestions }, (_, qIdx) => (
+                                    <button
+                                        key={qIdx}
+                                        onClick={() => { setCurrentIndex(qIdx); setSelectedOption(null); setShowExplanation(false); setShowAnswer(false); }}
+                                        className={`w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-sm transition-all ${
+                                            currentIndex === qIdx
+                                                ? 'bg-blue-600 text-white scale-110 shadow-lg shadow-blue-900/50'
+                                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
+                                        }`}
+                                    >
+                                        {qIdx + 1}
+                                    </button>
+                                ))}
                             </div>
 
                             <button

@@ -63,6 +63,10 @@ export async function GET(req: Request) {
             baseQuery.batches = { $in: realBatches };
         }
     }
+    const typeParam = url.searchParams.get('type');
+    if (typeParam) {
+        baseQuery.type = { $in: typeParam.split('|||') };
+    }
     if (uploadedByParam) {
         baseQuery.uploadedBy = { $in: uploadedByParam.split('|||') };
     }

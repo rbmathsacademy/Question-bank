@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Undo2, Redo2, Eraser, PenTool, ChevronLeft, ChevronRight, Palette } from 'lucide-react';
+import { Undo2, Redo2, Eraser, PenTool, ChevronLeft, ChevronRight, Palette, MousePointer2 } from 'lucide-react';
 
 type Point = { x: number; y: number };
 
@@ -35,7 +35,7 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
     const [historyStep, setHistoryStep] = useState<number>(0);
     
     // Tools
-    const [isErasing, setIsErasing] = useState(false);
+    const [activeTool, setActiveTool] = useState<'pen' | 'eraser' | 'cursor'>('pen');
     const [activeColor, setActiveColor] = useState('#FFFFFF');
     const [strokeWidth, setStrokeWidth] = useState(3);
     const eraserWidth = 20;
@@ -47,47 +47,6 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
     const currentStroke = useRef<Stroke | null>(null);
     const isDrawing = useRef(false);
     const lastRenderTime = useRef(0);
-
-    // ─── INIT & RESIZE ───
-    useEffect(() => {
-        const container = containerRef.current;
-        const canvas = canvasRef.current;
-        if (!container || !canvas) return;
-
-        const resizeCanvas = (e?: Event) => {
-            const rect = container.getBoundingClientRect();
-            // Handle high-DPI displays
-            const dpr = window.devicePixelRatio || 1;
-            canvas.width = rect.width * dpr;
-            canvas.height = rect.height * dpr;
-            canvas.style.width = `${rect.width}px`;
-            canvas.style.height = `${rect.height}px`;
-            
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                ctx.scale(dpr, dpr);
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-            }
-            drawAllStrokes(); // Redraw after resize
-        };
-
-        window.addEventListener('resize', resizeCanvas as EventListener);
-        resizeCanvas();
-
-        return () => window.removeEventListener('resize', resizeCanvas as EventListener);
-    }, []);
-
-    // ─── CLEAR ON RESET ───
-    useEffect(() => {
-        setStrokes([]);
-        setHistory([[]] as Stroke[][]);
-        setHistoryStep(0);
-        const ctx = canvasRef.current?.getContext('2d');
-        if (ctx && canvasRef.current) {
-            ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-        }
-    }, [resetKey]);
 
     // ─── DRAWING ENGINE ───
     const drawAllStrokes = useCallback(() => {
@@ -134,6 +93,47 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
         });
     }, [strokes]);
 
+    // ─── INIT & RESIZE ───
+    useEffect(() => {
+        const container = containerRef.current;
+        const canvas = canvasRef.current;
+        if (!container || !canvas) return;
+
+        const resizeCanvas = (e?: Event) => {
+            const rect = container.getBoundingClientRect();
+            // Handle high-DPI displays
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            canvas.style.width = `${rect.width}px`;
+            canvas.style.height = `${rect.height}px`;
+            
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                ctx.scale(dpr, dpr);
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+            }
+            drawAllStrokes(); // Redraw after resize
+        };
+
+        window.addEventListener('resize', resizeCanvas as EventListener);
+        resizeCanvas();
+
+        return () => window.removeEventListener('resize', resizeCanvas as EventListener);
+    }, [drawAllStrokes]);
+
+    // ─── CLEAR ON RESET ───
+    useEffect(() => {
+        setStrokes([]);
+        setHistory([[]] as Stroke[][]);
+        setHistoryStep(0);
+        const ctx = canvasRef.current?.getContext('2d');
+        if (ctx && canvasRef.current) {
+            ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        }
+    }, [resetKey]);
+
     // Sync canvas when strokes state changes
     useEffect(() => {
         drawAllStrokes();
@@ -159,16 +159,17 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
     };
 
     const handlePointerDown = (e: React.PointerEvent) => {
-        if (!canvasRef.current) return;
+        if (!canvasRef.current || activeTool === 'cursor') return;
         (e.target as HTMLElement).setPointerCapture(e.pointerId);
         
         const pos = getPointerPos(e);
         isDrawing.current = true;
 
-        if (isErasing) {
+        if (activeTool === 'eraser') {
             eraseAt(pos);
-        } else {
+        } else if (activeTool === 'pen') {
             currentStroke.current = {
+                // eslint-disable-next-line react-hooks/purity
                 id: Date.now().toString() + Math.random().toString(),
                 points: [pos],
                 color: activeColor,
@@ -179,39 +180,49 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
     };
 
     const handlePointerMove = (e: React.PointerEvent) => {
-        if (!isDrawing.current) return;
+        if (!isDrawing.current || activeTool === 'cursor') return;
         
         const pos = getPointerPos(e);
 
-        if (isErasing) {
-            // Throttle eraser checks slightly for performance
+        if (activeTool === 'eraser') {
+            // eslint-disable-next-line react-hooks/purity
             const now = performance.now();
             if (now - lastRenderTime.current > 16) {
                 eraseAt(pos);
                 lastRenderTime.current = now;
             }
-        } else if (currentStroke.current) {
-            currentStroke.current.points.push(pos);
-            // Throttle visual updates to ~60fps
-            const now = performance.now();
-            if (now - lastRenderTime.current > 16) {
-                drawAllStrokes();
-                lastRenderTime.current = now;
+        } else if (activeTool === 'pen' && currentStroke.current) {
+            const ctx = canvasRef.current?.getContext('2d');
+            if (ctx) {
+                const points = currentStroke.current.points;
+                const lastPoint = points[points.length - 1];
+                
+                // Draw incremental segment instantly
+                ctx.beginPath();
+                ctx.strokeStyle = currentStroke.current.color;
+                ctx.lineWidth = currentStroke.current.width;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.moveTo(lastPoint.x, lastPoint.y);
+                ctx.lineTo(pos.x, pos.y);
+                ctx.stroke();
+
+                points.push(pos);
             }
         }
     };
 
     const handlePointerUp = (e: React.PointerEvent) => {
-        if (!isDrawing.current) return;
+        if (!isDrawing.current || activeTool === 'cursor') return;
         isDrawing.current = false;
         (e.target as HTMLElement).releasePointerCapture(e.pointerId);
 
-        if (!isErasing && currentStroke.current) {
+        if (activeTool === 'pen' && currentStroke.current) {
             const newStrokes = [...strokes, currentStroke.current];
             setStrokes(newStrokes);
             pushToHistory(newStrokes);
             currentStroke.current = null;
-            // The useEffect will trigger a redraw
+            // The useEffect will trigger a full redraw with bezier curves smoothing out the jagged incremental lines!
         }
     };
 
@@ -266,11 +277,11 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
     };
 
     return (
-        <div ref={containerRef} className="absolute inset-0 overflow-hidden bg-transparent">
+        <div ref={containerRef} className="absolute inset-0 overflow-hidden bg-transparent z-40 pointer-events-none">
             {/* CANVAS */}
             <canvas
                 ref={canvasRef}
-                className="absolute inset-0 touch-none cursor-crosshair z-10"
+                className={`absolute inset-0 touch-none ${activeTool === 'cursor' ? 'pointer-events-none' : 'pointer-events-auto cursor-crosshair'}`}
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
@@ -278,38 +289,51 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
                 onPointerLeave={handlePointerUp}
             />
 
+            {/* CURSOR BUTTON (Bottom Right of Left Panel) */}
+            <button
+                onClick={() => setActiveTool('cursor')}
+                className={`absolute bottom-6 left-[calc(50%-4rem)] z-50 p-4 rounded-full shadow-2xl transition-all pointer-events-auto border-2 ${
+                    activeTool === 'cursor' 
+                        ? 'bg-blue-600 text-white border-blue-400 scale-110' 
+                        : 'bg-gray-800 text-gray-400 border-gray-600 hover:text-white hover:bg-gray-700'
+                }`}
+                title="Pointer Mode (Click Buttons)"
+            >
+                <MousePointer2 className="w-6 h-6" />
+            </button>
+
             {/* FLOATING PALETTE */}
-            <div className={`absolute bottom-6 left-6 z-20 flex transition-transform duration-300 ${isPaletteOpen ? 'translate-x-0' : '-translate-x-[calc(100%+1.5rem)]'}`}>
-                <div className="bg-gray-900/90 backdrop-blur-md border border-gray-700 p-3 rounded-2xl shadow-2xl flex gap-4 pointer-events-auto">
+            <div className={`absolute bottom-6 left-6 z-50 flex transition-transform duration-300 ${isPaletteOpen ? 'translate-x-0' : '-translate-x-[calc(100%+1.5rem)]'}`}>
+                <div className="bg-gray-900/95 backdrop-blur-md border border-gray-700 p-2 rounded-xl shadow-2xl flex gap-3 pointer-events-auto items-center">
                     
                     {/* Tools */}
-                    <div className="flex flex-col gap-3 pr-4 border-r border-gray-700">
+                    <div className="flex flex-col gap-2 pr-3 border-r border-gray-700">
                         <button 
-                            onClick={() => setIsErasing(false)}
-                            className={`p-3 rounded-xl transition-colors ${!isErasing ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
+                            onClick={() => setActiveTool('pen')}
+                            className={`p-2 rounded-lg transition-colors ${activeTool === 'pen' ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
                             title="Pen"
                         >
-                            <PenTool className="w-5 h-5" />
+                            <PenTool className="w-4 h-4" />
                         </button>
                         <button 
-                            onClick={() => setIsErasing(true)}
-                            className={`p-3 rounded-xl transition-colors ${isErasing ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
+                            onClick={() => setActiveTool('eraser')}
+                            className={`p-2 rounded-lg transition-colors ${activeTool === 'eraser' ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
                             title="Stroke Eraser"
                         >
-                            <Eraser className="w-5 h-5" />
+                            <Eraser className="w-4 h-4" />
                         </button>
                     </div>
 
-                    {/* Colors */}
-                    <div className="flex flex-col gap-3 justify-center">
-                        <div className="grid grid-cols-6 gap-2">
+                    {/* Colors (Narrower) */}
+                    <div className="flex flex-col gap-2 justify-center">
+                        <div className="grid grid-cols-6 gap-1.5">
                             {COLORS.map((colorSet) => (
-                                <div key={colorSet.name} className="flex flex-col gap-2">
+                                <div key={colorSet.name} className="flex flex-col gap-1.5">
                                     {colorSet.variants.map((hex) => (
                                         <button
                                             key={hex}
-                                            onClick={() => { setActiveColor(hex); setIsErasing(false); }}
-                                            className={`w-7 h-7 rounded-full border-2 transition-transform ${activeColor === hex && !isErasing ? 'scale-125 border-white shadow-[0_0_10px_rgba(255,255,255,0.5)] z-10' : 'border-transparent hover:scale-110'}`}
+                                            onClick={() => { setActiveColor(hex); setActiveTool('pen'); }}
+                                            className={`w-6 h-6 rounded-full border-2 transition-transform ${activeColor === hex && activeTool === 'pen' ? 'scale-125 border-white shadow-[0_0_8px_rgba(255,255,255,0.6)] z-10' : 'border-transparent hover:scale-110'}`}
                                             style={{ backgroundColor: hex }}
                                             title={colorSet.name}
                                         />
@@ -320,22 +344,22 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
                     </div>
 
                     {/* History */}
-                    <div className="flex flex-col gap-3 pl-4 border-l border-gray-700 justify-center">
+                    <div className="flex flex-col gap-2 pl-3 border-l border-gray-700 justify-center">
                         <button 
                             onClick={undo}
                             disabled={historyStep === 0}
-                            className="p-2 rounded-lg bg-gray-800 text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors"
+                            className="p-1.5 rounded-md bg-gray-800 text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors"
                             title="Undo"
                         >
-                            <Undo2 className="w-4 h-4" />
+                            <Undo2 className="w-3.5 h-3.5" />
                         </button>
                         <button 
                             onClick={redo}
                             disabled={historyStep === history.length - 1}
-                            className="p-2 rounded-lg bg-gray-800 text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors"
+                            className="p-1.5 rounded-md bg-gray-800 text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors"
                             title="Redo"
                         >
-                            <Redo2 className="w-4 h-4" />
+                            <Redo2 className="w-3.5 h-3.5" />
                         </button>
                     </div>
                 </div>
@@ -344,17 +368,17 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
             {/* TOGGLE PALETTE BUTTON */}
             <button
                 onClick={() => setIsPaletteOpen(!isPaletteOpen)}
-                className={`absolute bottom-10 z-30 p-2 bg-gray-800 border border-gray-600 text-white rounded-r-xl shadow-lg transition-all duration-300 hover:bg-gray-700 ${isPaletteOpen ? 'left-[calc(100%-1rem)] opacity-0 pointer-events-none' : 'left-0'}`}
+                className={`absolute bottom-8 z-50 p-2 bg-gray-800 border border-gray-600 text-white rounded-r-lg shadow-lg pointer-events-auto transition-all duration-300 hover:bg-gray-700 ${isPaletteOpen ? 'left-[calc(100%-1rem)] opacity-0 pointer-events-none' : 'left-0'}`}
                 title="Open Palette"
             >
-                <ChevronRight className="w-5 h-5" />
+                <ChevronRight className="w-4 h-4" />
             </button>
             <button
                 onClick={() => setIsPaletteOpen(false)}
-                className={`absolute bottom-[4.5rem] z-30 p-1.5 bg-gray-800 border border-gray-600 text-white rounded-full shadow-lg transition-all duration-300 hover:bg-gray-700 ${!isPaletteOpen ? 'opacity-0 pointer-events-none' : 'left-[360px]'}`}
+                className={`absolute bottom-[3.5rem] z-50 p-1 bg-gray-800 border border-gray-600 text-white rounded-full shadow-lg pointer-events-auto transition-all duration-300 hover:bg-gray-700 ${!isPaletteOpen ? 'opacity-0 pointer-events-none' : 'left-[220px]'}`}
                 title="Hide Palette"
             >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-3 h-3" />
             </button>
         </div>
     );
