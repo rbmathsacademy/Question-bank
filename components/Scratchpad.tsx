@@ -13,19 +13,7 @@ type Stroke = {
     width: number;
 };
 
-function getSvgPathFromStroke(stroke: number[][]) {
-    if (!stroke.length) return "";
-    const d = stroke.reduce(
-        (acc, [x0, y0], i, arr) => {
-            const [x1, y1] = arr[(i + 1) % arr.length];
-            acc.push(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
-            return acc;
-        },
-        ["M", ...stroke[0], "Q"]
-    );
-    d.push("Z");
-    return d.join(" ");
-}
+
 
 const COLORS = [
     { name: 'White', variants: ['#FFFFFF', '#A0A0A0'] },
@@ -77,12 +65,21 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
             smoothing: 0.5,
             streamline: 0.5,
         });
-        const pathData = getSvgPathFromStroke(outline as number[][]);
-        if (pathData) {
-            const path = new Path2D(pathData);
-            ctx.fillStyle = stroke.color;
-            ctx.fill(path);
+        
+        if (!outline || outline.length === 0) return;
+        
+        ctx.beginPath();
+        ctx.moveTo(outline[0][0], outline[0][1]);
+        
+        for (let i = 0; i < outline.length; i++) {
+            const [x0, y0] = outline[i];
+            const [x1, y1] = outline[(i + 1) % outline.length];
+            ctx.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
         }
+        
+        ctx.closePath();
+        ctx.fillStyle = stroke.color;
+        ctx.fill();
     };
 
     const updateBgCanvas = useCallback(() => {

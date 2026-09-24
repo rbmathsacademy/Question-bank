@@ -322,14 +322,16 @@ export default function JEESection() {
         }
     };
 
-    // ─── Trigger fetch on topic change ───
+    // ─── Trigger fetch on filter change ───
     useEffect(() => {
         if (!userEmail) return;
         const actualTopics = selectedTopics.filter(t => t !== "No Topic");
         if (actualTopics.length > 0) {
-            fetchQuestions(userEmail, { topics: actualTopics, exams: selectedExams.length > 0 ? selectedExams : undefined });
+            // Fetch all questions for the topic so client-side filters (like Exam) don't shrink
+            fetchQuestions(userEmail, { topics: actualTopics });
         } else if (selectedExams.length > 0) {
-            fetchQuestions(userEmail, { exams: selectedExams.length > 0 ? selectedExams : undefined });
+            // If no topic selected, fetch by exam
+            fetchQuestions(userEmail, { exams: selectedExams });
         } else {
             setQuestions([]);
         }
