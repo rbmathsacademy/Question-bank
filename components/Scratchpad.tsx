@@ -56,6 +56,10 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
     // Canvases
     const bgCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
+    const dirtyRectRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+
+    const getDpr = () => Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2);
+
     const renderStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
         if (stroke.points.length === 0) return;
         const rawPoints = stroke.points.map(p => [p.x, p.y, p.pressure || 0.5] as number[]);
@@ -89,7 +93,7 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
         const ctx = bgCanvas.getContext('2d');
         if (!ctx) return;
         
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = getDpr();
         ctx.clearRect(0, 0, bgCanvas.width / dpr, bgCanvas.height / dpr);
         
         strokes.forEach(stroke => renderStroke(ctx, stroke));
@@ -103,18 +107,48 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
     }, [strokes, updateBgCanvas]);
 
     // ─── DRAWING ENGINE ───
-    const drawActive = useCallback(() => {
+    const drawActive = useCallback((predictedPoints: Point[] = []) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        const dpr = window.devicePixelRatio || 1;
-        ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+        const dpr = getDpr();
+        
+        if (dirtyRectRef.current) {
+            const { x, y, w, h } = dirtyRectRef.current;
+            ctx.clearRect(x, y, w, h);
+        } else {
+            ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+        }
         
         // 2. Draw current stroke
         if (currentStroke.current) {
-            renderStroke(ctx, currentStroke.current);
+            let pointsToRender = currentStroke.current.points;
+            if (predictedPoints && predictedPoints.length > 0) {
+                pointsToRender = [...pointsToRender, ...predictedPoints];
+            }
+            const tempStroke = { ...currentStroke.current, points: pointsToRender };
+
+            // Compute bounding box for next clear
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            tempStroke.points.forEach(p => {
+                if (p.x < minX) minX = p.x;
+                if (p.x > maxX) maxX = p.x;
+                if (p.y < minY) minY = p.y;
+                if (p.y > maxY) maxY = p.y;
+            });
+            const pad = tempStroke.width * 5;
+            dirtyRectRef.current = {
+                x: minX - pad,
+                y: minY - pad,
+                w: (maxX - minX) + pad * 2,
+                h: (maxY - minY) + pad * 2
+            };
+
+            renderStroke(ctx, tempStroke);
+        } else {
+            dirtyRectRef.current = null;
         }
     }, []);
 
@@ -128,7 +162,7 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
         const resizeCanvas = (e?: Event) => {
             const rect = container.getBoundingClientRect();
             // Handle high-DPI displays
-            const dpr = window.devicePixelRatio || 1;
+            const dpr = getDpr();
             
             // Size Active Canvas
             canvas.width = rect.width * dpr;
@@ -237,10 +271,13 @@ export default function Scratchpad({ resetKey }: ScratchpadProps) {
                 currentStroke.current!.points.push(getPointerPos(ev.clientX, ev.clientY, (ev as PointerEvent).pressure));
             });
 
+            const predictedEvents = (e.nativeEvent as any).getPredictedEvents ? (e.nativeEvent as any).getPredictedEvents() : [];
+            const predictedPoints = predictedEvents.map((ev: any) => getPointerPos(ev.clientX, ev.clientY, ev.pressure));
+
             if (!pendingRender.current) {
                 pendingRender.current = true;
                 rAFId.current = requestAnimationFrame(() => {
-                    drawActive();
+                    drawActive(predictedPoints);
                     pendingRender.current = false;
                 });
             }
