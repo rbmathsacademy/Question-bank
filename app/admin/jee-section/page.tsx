@@ -351,10 +351,14 @@ export default function JEESection() {
         return qs.filter(q => selectedTypes.includes(q.type || 'mcq'));
     };
 
+    const isDataFetched = useMemo(() => {
+        const actualTopics = selectedTopics.filter(t => t !== "No Topic");
+        return actualTopics.length > 0 || selectedExams.length > 0;
+    }, [selectedTopics, selectedExams]);
+
     // ─── Cascading Filter Options ───
     const topics = useMemo(() => {
-        const hasNarrowing = selectedExams.length > 0 || selectedTypes.length > 0 || selectedSubtopics.length > 0;
-        if (!hasNarrowing && questions.length === 0 && serverFilters.topics.length > 0) {
+        if (!isDataFetched && serverFilters.topics.length > 0) {
             return ["No Topic", ...serverFilters.topics];
         }
         const set = new Set<string>();
@@ -367,9 +371,12 @@ export default function JEESection() {
             });
         }
         filtered.forEach(q => set.add(q.topic));
-        if (!hasNarrowing && serverFilters.topics.length > 0) serverFilters.topics.forEach(t => set.add(t));
+        
+        // Always include currently selected topics so they can be deselected
+        selectedTopics.filter(t => t !== "No Topic").forEach(t => set.add(t));
+        
         return ["No Topic", ...Array.from(set).filter(Boolean).sort()];
-    }, [questions, selectedSubtopics, selectedExams, selectedTypes, serverFilters]);
+    }, [isDataFetched, questions, selectedSubtopics, selectedExams, selectedTypes, serverFilters, selectedTopics]);
 
     const subtopics = useMemo(() => {
         const actualTopics = selectedTopics.filter(t => t !== "No Topic");
@@ -381,13 +388,17 @@ export default function JEESection() {
                 return qExams.some((e: string) => selectedExams.includes(e));
             });
         }
-        return Array.from(new Set(filtered.map(q => q.subtopic))).filter(Boolean).sort();
-    }, [questions, selectedTopics, selectedExams, selectedTypes]);
+        const set = new Set(filtered.map(q => q.subtopic));
+        
+        selectedSubtopics.forEach(s => set.add(s));
+        return Array.from(set).filter(Boolean).sort();
+    }, [questions, selectedTopics, selectedExams, selectedTypes, selectedSubtopics]);
 
     const examNames = useMemo(() => {
+        if (!isDataFetched && serverFilters.examNames.length > 0) {
+            return serverFilters.examNames;
+        }
         const actualTopics = selectedTopics.filter(t => t !== "No Topic");
-        const hasNarrowing = actualTopics.length > 0 || selectedTypes.length > 0 || selectedSubtopics.length > 0;
-        if (!hasNarrowing && questions.length === 0 && serverFilters.examNames.length > 0) return serverFilters.examNames;
         const set = new Set<string>();
         let filtered = filterByTypes(questions);
         if (actualTopics.length > 0) filtered = filtered.filter(q => actualTopics.includes(q.topic));
@@ -396,17 +407,17 @@ export default function JEESection() {
             if (q.examNames && Array.isArray(q.examNames)) q.examNames.forEach(e => set.add(e));
             else if (q.examName) set.add(q.examName);
         });
-        if (!hasNarrowing && serverFilters.examNames.length > 0) serverFilters.examNames.forEach(e => set.add(e));
+        
+        selectedExams.forEach(e => set.add(e));
         return Array.from(set).filter(Boolean).sort();
-    }, [questions, selectedTopics, selectedSubtopics, selectedTypes, serverFilters]);
+    }, [isDataFetched, questions, selectedTopics, selectedSubtopics, selectedTypes, serverFilters, selectedExams]);
 
     const availableTypes = useMemo(() => {
-        const actualTopics = selectedTopics.filter(t => t !== "No Topic");
-        const hasNarrowing = actualTopics.length > 0 || selectedSubtopics.length > 0 || selectedExams.length > 0;
-        if (!hasNarrowing && questions.length === 0) {
+        if (!isDataFetched) {
             return ['mcq', 'broad', 'short', 'fill_in_the_blanks'];
         }
         
+        const actualTopics = selectedTopics.filter(t => t !== "No Topic");
         let filtered = questions;
         if (actualTopics.length > 0) filtered = filtered.filter(q => actualTopics.includes(q.topic));
         if (selectedSubtopics.length > 0) filtered = filtered.filter(q => selectedSubtopics.includes(q.subtopic));
@@ -418,8 +429,10 @@ export default function JEESection() {
         }
         
         const set = new Set(filtered.map(q => q.type || 'mcq'));
+        
+        selectedTypes.forEach(t => set.add(t));
         return Array.from(set).filter(Boolean).sort();
-    }, [questions, selectedTopics, selectedSubtopics, selectedExams]);
+    }, [isDataFetched, questions, selectedTopics, selectedSubtopics, selectedExams, selectedTypes]);
 
     // ─── Filtered Questions for Display ───
     const displayQuestions = useMemo(() => {
