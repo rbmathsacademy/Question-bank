@@ -36,6 +36,7 @@ interface Assignment {
     type: 'PDF' | 'QUESTIONS' | 'INTERACTIVE';
     batch: string;
     deadline: string;
+    scheduledFor?: string | null;
     cooldownDuration?: number;
     content: any;
     folderId?: string;
@@ -58,6 +59,7 @@ export default function AssignmentDetailsPage() {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editTitle, setEditTitle] = useState('');
     const [editDeadline, setEditDeadline] = useState('');
+    const [editScheduledFor, setEditScheduledFor] = useState(''); // Optional scheduled open time
     const [editCooldown, setEditCooldown] = useState(0);
     const [editCooldownEndTime, setEditCooldownEndTime] = useState('');
 
@@ -137,6 +139,14 @@ export default function AssignmentDetailsPage() {
                 const d = new Date(data.assignment.deadline);
                 const deadlineLocal = d.toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
                 setEditDeadline(deadlineLocal);
+
+                // Init scheduledFor
+                if (data.assignment.scheduledFor) {
+                    const sf = new Date(data.assignment.scheduledFor);
+                    setEditScheduledFor(sf.toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16));
+                } else {
+                    setEditScheduledFor('');
+                }
 
                 // Calculate initial cooldown end time
                 const c = data.assignment.cooldownDuration || 0;
@@ -234,6 +244,7 @@ export default function AssignmentDetailsPage() {
                 body: JSON.stringify({
                     title: editTitle,
                     deadline: new Date(editDeadline).toISOString(),
+                    scheduledFor: editScheduledFor ? new Date(editScheduledFor).toISOString() : null,
                     cooldownDuration: editCooldown
                 })
             });
@@ -482,6 +493,15 @@ export default function AssignmentDetailsPage() {
                         {assignment.title}
                     </h1>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 text-gray-400 mt-3 sm:mt-4 text-sm flex-wrap">
+                        {/* Scheduled open time — show before deadline info if set */}
+                        {assignment.scheduledFor && new Date() < new Date(assignment.scheduledFor) && (
+                            <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg">
+                                <svg className="w-4 h-4 text-amber-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                                <span className="text-amber-300 font-medium">
+                                    Scheduled: Opens {new Date(assignment.scheduledFor).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata' })} {new Date(assignment.scheduledFor).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
+                                </span>
+                            </div>
+                        )}
                         <div className="flex items-center gap-2">
                             <Clock className={`w-4 h-4 sm:w-5 sm:h-5 ${isExpired ? 'text-red-400' : 'text-green-400'}`} />
                             <span>Due: {deadline.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata' })} {deadline.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}</span>
@@ -1164,6 +1184,39 @@ export default function AssignmentDetailsPage() {
                                     onChange={(e) => setEditDeadline(e.target.value)}
                                     className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:border-blue-500"
                                 />
+                            </div>
+                            {/* Scheduled Open Time */}
+                            <div>
+                                <label className="block text-sm text-gray-400 mb-1 flex items-center gap-1.5">
+                                    <svg className="w-3.5 h-3.5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                                    Schedule Open Time
+                                    <span className="text-gray-600 font-normal">(optional)</span>
+                                </label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="datetime-local"
+                                        value={editScheduledFor}
+                                        onChange={(e) => setEditScheduledFor(e.target.value)}
+                                        max={editDeadline || undefined}
+                                        className="flex-1 bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:border-amber-500"
+                                    />
+                                    {editScheduledFor && (
+                                        <button
+                                            onClick={() => setEditScheduledFor('')}
+                                            className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-xs font-medium transition-colors border border-red-500/20"
+                                            title="Clear schedule — assignment opens immediately"
+                                        >
+                                            Clear
+                                        </button>
+                                    )}
+                                </div>
+                                {editScheduledFor ? (
+                                    <p className="text-xs text-amber-400 mt-1">
+                                        Students will see but cannot open until {new Date(editScheduledFor).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                ) : (
+                                    <p className="text-xs text-gray-500 mt-1">Leave blank to make visible immediately</p>
+                                )}
                             </div>
                             <div>
                                 <label className="block text-sm text-gray-400 mb-1">Cooldown End Time</label>

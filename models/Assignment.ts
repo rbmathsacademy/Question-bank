@@ -16,6 +16,7 @@ const AssignmentSchema = new mongoose.Schema({
     batch: { type: String, required: true },
     folderId: { type: mongoose.Schema.Types.ObjectId, ref: 'AssignmentFolder', default: null },
     deadline: { type: Date, required: true },
+    scheduledFor: { type: Date, default: null }, // If set, students cannot access until this time
     cooldownDuration: { type: Number, default: 0 }, // in minutes
     boardWise: { type: Boolean, default: false },
     boardContent: {

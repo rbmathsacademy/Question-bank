@@ -74,12 +74,16 @@ export async function GET(req: NextRequest) {
             const submission = submissionMap.get(a._id.toString());
             const deadline = new Date(a.deadline);
             const cooldownEndDate = new Date(deadline.getTime() + (a.cooldownDuration || 0) * 60000);
+            const scheduledFor = a.scheduledFor ? new Date(a.scheduledFor) : null;
 
             let status = 'PENDING';
 
             if (submission) {
                 const isLateDynamically = submission.overrideOnTime ? false : (new Date(submission.submittedAt).getTime() > deadline.getTime());
                 status = isLateDynamically ? 'LATE_SUBMITTED' : 'SUBMITTED';
+            } else if (scheduledFor && now < scheduledFor) {
+                // Assignment is scheduled for a future time — not yet open
+                status = 'SCHEDULED';
             } else {
                 if (now < deadline) {
                     status = 'PENDING';
@@ -114,6 +118,7 @@ export async function GET(req: NextRequest) {
                 type: a.type,
                 batch: a.batch,
                 deadline: a.deadline,
+                scheduledFor: scheduledFor ? scheduledFor.toISOString() : null,
                 cooldownDuration: a.cooldownDuration,
                 cooldownEndDate,
                 createdAt: a.createdAt,

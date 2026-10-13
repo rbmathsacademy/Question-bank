@@ -16,9 +16,10 @@ interface Assignment {
     batch: string;
     content: any;
     deadline: string;
+    scheduledFor: string | null;
     cooldownDuration: number;
     cooldownEndDate: string;
-    status: 'PENDING' | 'LATE_ALLOWED' | 'SUBMITTED' | 'LATE_SUBMITTED' | 'CLOSED';
+    status: 'PENDING' | 'LATE_ALLOWED' | 'SUBMITTED' | 'LATE_SUBMITTED' | 'CLOSED' | 'SCHEDULED';
     submissionId?: string;
     submissionLink?: string;
     correctionStatus: 'PENDING' | 'CORRECTED';
@@ -263,7 +264,9 @@ export default function StudentAssignmentsPage() {
     // Pending = PENDING + LATE_ALLOWED (can still submit)
     // Completed = SUBMITTED + LATE_SUBMITTED (has submitted)
     // Missed = CLOSED (deadline + cooldown expired, never submitted)
+    // Scheduled assignments (SCHEDULED status) appear in the Pending tab as a separate section
     const pendingAssignments = batchFilteredAssignments.filter(a => ['PENDING', 'LATE_ALLOWED'].includes(a.status));
+    const scheduledAssignments = batchFilteredAssignments.filter(a => a.status === 'SCHEDULED');
     const completedAssignments = batchFilteredAssignments.filter(a => ['SUBMITTED', 'LATE_SUBMITTED'].includes(a.status));
     const missedAssignments = batchFilteredAssignments.filter(a => a.status === 'CLOSED');
 
@@ -367,7 +370,7 @@ export default function StudentAssignmentsPage() {
                         : 'text-gray-400 hover:text-white'
                         }`}
                 >
-                    Pending ({pendingAssignments.length})
+                    Pending ({pendingAssignments.length + scheduledAssignments.length})
                 </button>
                 <button
                     onClick={() => setActiveTab('COMPLETED')}
@@ -389,6 +392,21 @@ export default function StudentAssignmentsPage() {
                 </button>
             </div>
 
+            {/* Scheduled Assignments — shown at the top of the Pending tab */}
+            {activeTab === 'PENDING' && scheduledAssignments.length > 0 && (
+                <div className="mb-6">
+                    <div className="flex items-center gap-2 mb-3">
+                        <svg className="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                        <h2 className="text-sm font-semibold text-amber-400 uppercase tracking-wide">Upcoming — Not Yet Open</h2>
+                    </div>
+                    <div className="space-y-3">
+                        {scheduledAssignments.map(assignment => (
+                            <ScheduledAssignmentCard key={assignment._id} assignment={assignment} />
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Assignment List */}
             <div className="space-y-4">
                 {displayedAssignments.map(assignment => (
@@ -402,7 +420,7 @@ export default function StudentAssignmentsPage() {
                     />
                 ))}
 
-                {displayedAssignments.length === 0 && (
+                {displayedAssignments.length === 0 && (activeTab !== 'PENDING' || scheduledAssignments.length === 0) && (
                     <div className="text-center py-12 text-gray-500 bg-[#1a1f2e] rounded-xl ring-1 ring-white/5">
                         <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
                         <p>
@@ -633,6 +651,74 @@ function AssignmentCard({
                             />
                         </label>
                     )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ScheduledAssignmentCard({ assignment }: { assignment: Assignment }) {
+    const scheduledDate = new Date(assignment.scheduledFor!);
+    const deadlineDate = new Date(assignment.deadline);
+    const [timeUntilOpen, setTimeUntilOpen] = useState('');
+
+    useEffect(() => {
+        let timerId: ReturnType<typeof setInterval>;
+        const tick = () => {
+            const now = new Date();
+            const diff = scheduledDate.getTime() - now.getTime();
+            if (diff <= 0) {
+                setTimeUntilOpen('Opening soon...');
+                clearInterval(timerId);
+            } else {
+                const d = Math.floor(diff / 86400000);
+                const h = Math.floor((diff % 86400000) / 3600000);
+                const m = Math.floor((diff % 3600000) / 60000);
+                const s = Math.floor((diff % 60000) / 1000);
+                if (d > 0) setTimeUntilOpen(`Opens in ${d}d ${h}h ${m}m`);
+                else if (h > 0) setTimeUntilOpen(`Opens in ${h}h ${m}m ${s}s`);
+                else setTimeUntilOpen(`Opens in ${m}m ${s}s`);
+            }
+        };
+        tick();
+        timerId = setInterval(tick, 1000);
+        return () => clearInterval(timerId);
+    }, [assignment.scheduledFor]);
+
+    return (
+        <div className="bg-[#1a1f2e] rounded-xl overflow-hidden ring-1 ring-amber-500/20 opacity-90">
+            {/* Top amber strip */}
+            <div className="h-0.5 bg-gradient-to-r from-amber-500/60 to-amber-300/30" />
+            <div className="p-4 flex items-center gap-4">
+                {/* Icon */}
+                <div className="p-2.5 rounded-lg bg-amber-500/10 flex-shrink-0">
+                    <svg className="w-5 h-5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 6v6l4 2"/>
+                    </svg>
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-white/5 text-gray-400">{assignment.batch}</span>
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">Scheduled</span>
+                    </div>
+                    <h3 className="text-base font-semibold text-white truncate">{assignment.title}</h3>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                        <span className="text-xs text-amber-300 font-medium">
+                            Opens: {scheduledDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })} at {scheduledDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                            Due: {deadlineDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })} at {deadlineDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Countdown */}
+                <div className="text-right flex-shrink-0">
+                    <div className="font-mono text-sm font-bold text-amber-400 tracking-wide">{timeUntilOpen || '...'}</div>
+                    <p className="text-[10px] text-gray-500 mt-0.5">Not yet open</p>
                 </div>
             </div>
         </div>

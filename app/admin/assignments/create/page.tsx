@@ -26,6 +26,7 @@ export default function CreateAssignmentPage() {
     const [title, setTitle] = useState('');
     const [batch, setBatch] = useState('');
     const [deadline, setDeadline] = useState('');
+    const [scheduledFor, setScheduledFor] = useState(''); // Optional: future open time for students
     const [cooldown, setCooldown] = useState(60);
     const [cooldownEndTime, setCooldownEndTime] = useState('');
     const [type, setType] = useState<'PDF' | 'QUESTIONS' | 'BOARD_PDF' | 'INTERACTIVE'>('PDF');
@@ -253,6 +254,7 @@ export default function CreateAssignmentPage() {
                         title: title.trim(),
                         batch,
                         deadline: new Date(deadline).toISOString(),
+                        scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : null,
                         cooldownDuration: Number(cooldown) || 0,
                         type: 'INTERACTIVE',
                         content: 'INTERACTIVE',
@@ -351,6 +353,7 @@ export default function CreateAssignmentPage() {
                     title: title.trim(),
                     batch,
                     deadline: new Date(deadline).toISOString(),
+                    scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : null,
                     cooldownDuration: Number(cooldown) || 0,
                     type: isBoardWise ? 'PDF' : type,
                     content: contentStringOrArray,
@@ -443,6 +446,34 @@ export default function CreateAssignmentPage() {
                                 onChange={(e) => setDeadline(e.target.value)}
                                 className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-blue-500/50 outline-none"
                             />
+                        </div>
+
+                        {/* Scheduled Open Time */}
+                        <div>
+                            <label className="block text-sm text-gray-400 mb-1 flex items-center gap-1.5">
+                                <svg className="w-3.5 h-3.5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                                Schedule Open Time
+                                <span className="text-gray-600 font-normal">(optional)</span>
+                            </label>
+                            <input
+                                type="datetime-local"
+                                value={scheduledFor}
+                                onChange={(e) => setScheduledFor(e.target.value)}
+                                max={deadline || undefined}
+                                className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-amber-500/50 outline-none"
+                            />
+                            {scheduledFor ? (
+                                <div className="mt-1.5 flex items-start gap-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                                    <svg className="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                                    <p className="text-xs text-amber-300">
+                                        Students will see this assignment scheduled for <b>{new Date(scheduledFor).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</b> but cannot open it until then.
+                                    </p>
+                                </div>
+                            ) : (
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Leave blank to make it visible immediately. Set a future time to schedule it.
+                                </p>
+                            )}
                         </div>
 
                         <div>

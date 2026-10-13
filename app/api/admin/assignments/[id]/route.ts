@@ -164,6 +164,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         if (body.folderId !== undefined) updateData.folderId = body.folderId; // Allow null to remove from folder
         if (body.cooldownDuration !== undefined) updateData.cooldownDuration = Number(body.cooldownDuration);
         if (body.content !== undefined) updateData.content = body.content;
+        // scheduledFor: allow setting to a date or explicitly clearing (null)
+        if ('scheduledFor' in body) updateData.scheduledFor = body.scheduledFor ? new Date(body.scheduledFor) : null;
 
         const assignment = await Assignment.findByIdAndUpdate(
             id,
