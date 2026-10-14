@@ -1,22 +1,12 @@
-export const maxDuration = 60; // Wait up to 60 seconds on Vercel
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import ChatMessage from '@/models/ChatMessage';
+import AiRetryJob from '@/models/AiRetryJob';
 import mongoose from 'mongoose';
 import * as jose from 'jose';
 import dbConnect from '@/lib/db';
-
-const SYSTEM_INSTRUCTION = `You are RB Sir's Math-AI Assistant. Always begin your response EXACTLY with: 'Hi I am RB sir's Math-AI assistant, I will try to clear your doubt, if I fail to clear your doubt, RB sir will definitely answer your doubts'. Act as a strict tutor. Provide step-by-step guidance, but NEVER give away the final answer in any possible way. Only answer Math-related questions; if asked about other topics or if a student is just being chatty, refuse politely.
-
-IMPORTANT TUTORING RULES:
-1. Guide the student clearly on what to do next using conventional, book-standard solving methods. Do NOT use shortcuts or direct formulas that skip learning steps.
-2. DO NOT ask too many counter-questions as it makes the learning experience slow. Just provide the clear guiding steps.
-3. If a student shows their work, help them identify their mistakes but DO NOT just give them the correct next step or final answer.
-4. If a student refers to an assignment problem without providing the question text or image, politely ask them to upload a photo of it.
-5. ALWAYS end your response with exactly ONE closing statement: "If you are unable to proceed, please let me know where you are getting stuck or share the calculations you have got so far as a follow-up, and I will address it."
-
-FORMATTING: Do NOT use ANY Markdown formatting like **bold** stars or ### headers. If you want to make text bold or create a heading, you MUST wrap it in inline LaTeX math mode using \\textbf{}, for example: $\\textbf{Step 1: Solve for x}$. Write ALL mathematical expressions exclusively in inline LaTeX format using single dollars ($) so it stays inline. DO NOT use double dollars ($$) as it takes up too much vertical space.`;
+import { callGeminiWithFallback, driveUrlToBase64 } from '@/lib/geminiChat';
 
 export async function POST(req: NextRequest) {
     try {
@@ -36,28 +26,23 @@ export async function POST(req: NextRequest) {
             studentId = targetStudentId;
         }
 
-        if (!process.env.GEMINI_API_KEY) {
-            return NextResponse.json({ error: 'GEMINI_API_KEY is not configured on the server.' }, { status: 500 });
-        }
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
         if (!batchId || !text) {
             return NextResponse.json({ error: 'Missing batchId or text' }, { status: 400 });
         }
 
-        const contents: any[] = [];
         const sessionToUse = doubtSessionId || new mongoose.Types.ObjectId().toString();
 
-        // If there's an existing doubt session, fetch previous messages
+        // Build conversation history for this doubt session
+        const history: any[] = [];
         if (doubtSessionId) {
-            const historyMessages = await ChatMessage.find({ 
-                batchId, 
-                'doubtMetadata.doubtSessionId': doubtSessionId 
+            const historyMessages = await ChatMessage.find({
+                batchId,
+                'doubtMetadata.doubtSessionId': doubtSessionId
             }).sort({ createdAt: 1 });
 
             for (const msg of historyMessages) {
                 if (msg.type === 'text' && msg.content) {
-                    contents.push({
+                    history.push({
                         role: msg.senderId === studentId ? 'user' : 'model',
                         parts: [{ text: msg.content }]
                     });
@@ -65,82 +50,53 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // Current user message payload for Gemini
-        const currentMessageParts: any[] = [{ text }];
-
+        // Resolve image to base64 (from inline data or Google Drive URL)
         let finalBase64 = imageBase64;
-        
-        // Fetch image from URL if base64 is missing but URL is provided
         if (!finalBase64 && imageUrl) {
-            try {
-                let downloadUrl = imageUrl;
-                if (imageUrl.includes('drive.google.com/file/d/')) {
-                    const id = imageUrl.split('/d/')[1]?.split('/')[0];
-                    if (id) downloadUrl = `https://drive.google.com/uc?export=download&id=${id}`;
-                } else if (imageUrl.includes('export=view')) {
-                    downloadUrl = imageUrl.replace('export=view', 'export=download');
-                }
-
-                const imgRes = await fetch(downloadUrl);
-                if (!imgRes.ok) throw new Error(`HTTP ${imgRes.status}`);
-                
-                const arrayBuffer = await imgRes.arrayBuffer();
-                finalBase64 = Buffer.from(arrayBuffer).toString('base64');
-            } catch (err) {
-                console.error('Failed to fetch image from URL for AI:', err);
-            }
+            finalBase64 = await driveUrlToBase64(imageUrl) ?? undefined;
         }
 
-        if (finalBase64) {
-            currentMessageParts.push({
-                inlineData: {
-                    data: finalBase64.replace(/^data:image\/\w+;base64,/, ''),
-                    mimeType
-                }
-            });
-        }
-
-        contents.push({
-            role: 'user',
-            parts: currentMessageParts
-        });
-
-        // Loop through models with fallbacks
+        // --- Try Gemini now ---
         let aiResponseText = '';
         let success = false;
-        const fallbackModels = [
-            'gemini-3.8-flash', 
-            'gemini-3.6-flash', 
-            'gemini-3.5-flash-lite', 
-            'gemini-2.5-flash', 
-            'gemini-2.5-pro'
-        ];
-        
-        for (const modelName of fallbackModels) {
-            try {
-                const model = genAI.getGenerativeModel({
-                    model: modelName,
-                    systemInstruction: SYSTEM_INSTRUCTION
-                });
-                
-                const result = await model.generateContent({ contents });
-                aiResponseText = result.response.text();
-                success = true;
-                break; // Stop if successful
-            } catch (err: any) {
-                console.error(`Gemini Model ${modelName} failed:`, err.message);
-                // Continue to the next model in the fallback array
-            }
+        try {
+            aiResponseText = await callGeminiWithFallback({
+                text,
+                imageBase64: finalBase64,
+                mimeType,
+                history,
+            });
+            success = true;
+        } catch (err: any) {
+            console.error('[ask-ai] All Gemini models failed, scheduling retry:', err.message);
         }
 
         if (!success) {
-            return NextResponse.json({ 
-                error: 'AI assistant is busy due to high demand. Please try after sometime again',
-                isBusy: true
+            // Schedule a retry job: 1 min → 2 min → 3 min
+            await AiRetryJob.create({
+                batchId,
+                studentId,
+                text,
+                imageUrl: imageUrl || null,
+                mimeType,
+                doubtSessionId: sessionToUse,
+                attemptNumber: 1,
+                maxAttempts: 3,
+                nextRetryAt: new Date(Date.now() + 60 * 1000), // 1 minute from now
+                status: 'pending',
+            });
+
+            // Link the student's triggering messages to the session so badges appear later
+            await linkUnlinkedMessages(batchId, studentId, sessionToUse);
+
+            return NextResponse.json({
+                error: 'AI assistant is busy. Your question has been queued and will be answered automatically within a few minutes.',
+                isBusy: true,
+                queued: true,
             }, { status: 503 });
         }
 
-        // Save AI response to DB
+        // Save AI response
         const aiMessage = await ChatMessage.create({
             batchId,
             senderId: 'ai_assistant',
@@ -156,31 +112,33 @@ export async function POST(req: NextRequest) {
             }
         });
 
-        // Link the student's triggering messages to this session.
-        // We find the 2 most recent unlinked messages from this student (typically the text and the image)
-        const recentUnlinked = await ChatMessage.find({
-            batchId,
-            senderId: studentId,
-            'doubtMetadata.doubtSessionId': { $exists: false }
-        }).sort({ createdAt: -1 }).limit(2);
-
-        if (recentUnlinked.length > 0) {
-            const unlinkedIds = recentUnlinked.map(m => m._id);
-            await ChatMessage.updateMany(
-                { _id: { $in: unlinkedIds } },
-                { 
-                    $set: { 
-                        'doubtMetadata.targetStudentId': studentId,
-                        'doubtMetadata.status': 'pending',
-                        'doubtMetadata.doubtSessionId': sessionToUse
-                    } 
-                }
-            );
-        }
+        await linkUnlinkedMessages(batchId, studentId, sessionToUse);
 
         return NextResponse.json({ success: true, message: aiMessage, doubtSessionId: sessionToUse });
     } catch (error: any) {
-        console.error('Gemini Error:', error);
+        console.error('ask-ai error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}
+
+/** Link the 2 most recent unlinked student messages to the doubt session */
+async function linkUnlinkedMessages(batchId: string, studentId: string, sessionToUse: string) {
+    const recentUnlinked = await ChatMessage.find({
+        batchId,
+        senderId: studentId,
+        'doubtMetadata.doubtSessionId': { $exists: false }
+    }).sort({ createdAt: -1 }).limit(2);
+
+    if (recentUnlinked.length > 0) {
+        await ChatMessage.updateMany(
+            { _id: { $in: recentUnlinked.map(m => m._id) } },
+            {
+                $set: {
+                    'doubtMetadata.targetStudentId': studentId,
+                    'doubtMetadata.status': 'pending',
+                    'doubtMetadata.doubtSessionId': sessionToUse
+                }
+            }
+        );
     }
 }

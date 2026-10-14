@@ -229,6 +229,109 @@ function McqOptionsSection({ options, onChange }: McqOptionsSectionProps) {
     );
 }
 
+// ── AnswerImageUploader ────────────────────────────────────────────────────
+// A compact toolbar shown in the explanation area for non-MCQ questions.
+// Lets the user upload OR Ctrl+V paste an image into the `answerImage` field.
+interface AnswerImageUploaderProps {
+    hasImage: boolean;
+    onImage: (base64: string) => void;
+}
+
+function AnswerImageUploader({ hasImage, onImage }: AnswerImageUploaderProps) {
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const pasteZoneRef = useRef<HTMLDivElement>(null);
+
+    const processFile = async (file: File | Blob) => {
+        try {
+            const b64 = await compressImageToBase64(file);
+            onImage(b64);
+        } catch {
+            alert('Failed to process image');
+        }
+    };
+
+    const handlePaste = async (e: React.ClipboardEvent<HTMLDivElement>) => {
+        const items = e.clipboardData.items;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.startsWith('image/')) {
+                e.preventDefault();
+                const blob = items[i].getAsFile();
+                if (blob) await processFile(blob);
+                return;
+            }
+        }
+    };
+
+    return (
+        <div
+            ref={pasteZoneRef}
+            tabIndex={0}
+            onPaste={handlePaste}
+            className="flex items-center gap-2 mb-1 p-1.5 rounded border border-dashed border-violet-500/40 bg-violet-900/10 focus:outline-none focus:border-violet-400"
+            title="Click 'Paste Image' or Ctrl+V here to attach an answer image"
+        >
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) processFile(file);
+                    e.target.value = '';
+                }}
+            />
+            <ImageIcon className="h-3 w-3 text-violet-400 flex-shrink-0" />
+            <span className="text-[10px] font-bold text-violet-300 uppercase tracking-wider">Answer Image</span>
+            <button
+                type="button"
+                onClick={() => {
+                    pasteZoneRef.current?.focus();
+                    // Attempt programmatic paste (works in supported browsers)
+                    navigator.clipboard.read().then(async (items) => {
+                        for (const item of items) {
+                            const imgType = item.types.find(t => t.startsWith('image/'));
+                            if (imgType) {
+                                const blob = await item.getType(imgType);
+                                await processFile(blob);
+                                return;
+                            }
+                        }
+                        // Fallback: focus div so user can Ctrl+V
+                    }).catch(() => {
+                        pasteZoneRef.current?.focus();
+                    });
+                }}
+                className="flex items-center gap-1 text-[10px] text-violet-300 hover:text-white border border-violet-500/40 bg-violet-900/20 hover:bg-violet-700/30 px-2 py-0.5 rounded transition-colors flex-shrink-0"
+                title="Click, then Ctrl+V to paste an image from clipboard"
+            >
+                📋 Paste Image
+            </button>
+            <label
+                className="flex items-center gap-1 text-[10px] text-blue-300 hover:text-white border border-blue-500/40 bg-blue-900/20 hover:bg-blue-700/30 px-2 py-0.5 rounded cursor-pointer transition-colors flex-shrink-0"
+                title="Upload image file"
+            >
+                <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) processFile(file);
+                        e.target.value = '';
+                    }}
+                />
+                📁 Upload
+            </label>
+            {hasImage && (
+                <span className="ml-auto text-[10px] text-emerald-400 bg-emerald-900/20 px-1.5 py-0.5 rounded border border-emerald-900/40">
+                    ✓ Image set
+                </span>
+            )}
+        </div>
+    );
+}
+
 export default function QuestionRow({ index, question, mode, topics = [], subtopics = [], onChange, onDelete }: QuestionRowProps) {
     // Local state for immediate UI feedback
     const [localQuestion, setLocalQuestion] = useState(question);
@@ -749,6 +852,23 @@ export default function QuestionRow({ index, question, mode, topics = [], subtop
                                 <div className="text-emerald-300 text-sm leading-relaxed">
                                     <Latex>{String(localQuestion.answer)}</Latex>
                                 </div>
+                                {/* Answer Image Preview */}
+                                {localQuestion.answerImage && (
+                                    <div className="relative group/aimg mt-2 bg-gray-950 rounded border border-gray-700 overflow-hidden flex justify-center">
+                                        <img
+                                            src={localQuestion.answerImage}
+                                            alt="Answer diagram"
+                                            className="max-w-full max-h-[200px] object-contain"
+                                        />
+                                        <button
+                                            onClick={() => handleFieldChange('answerImage', '')}
+                                            className="absolute top-1 right-1 bg-red-700 hover:bg-red-600 text-white p-0.5 rounded opacity-0 group-hover/aimg:opacity-100 transition-opacity"
+                                            title="Remove answer image"
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -762,15 +882,23 @@ export default function QuestionRow({ index, question, mode, topics = [], subtop
                             </div>
                         )}
 
-                        {/* Explanation Segment */}
-                        {localQuestion.explanation && (
-                            <div className="mt-3 pt-3 border-t border-gray-700">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-violet-400 block mb-1">Explanation</span>
-                                <div className="text-gray-300 text-sm leading-relaxed">
-                                    <Latex>{String(localQuestion.explanation)}</Latex>
-                                </div>
-                            </div>
-                        )}
+                        {/* Explanation Segment — with Answer Image uploader for non-MCQ */}
+                        <div className="mt-3 pt-3 border-t border-gray-700">
+                            {localQuestion.type?.toLowerCase() !== 'mcq' && (
+                                <AnswerImageUploader
+                                    hasImage={!!localQuestion.answerImage}
+                                    onImage={(b64) => handleFieldChange('answerImage', b64)}
+                                />
+                            )}
+                            {localQuestion.explanation && (
+                                <>
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-violet-400 block mb-1">Explanation</span>
+                                    <div className="text-gray-300 text-sm leading-relaxed">
+                                        <Latex>{String(localQuestion.explanation)}</Latex>
+                                    </div>
+                                </>
+                            )}
+                        </div>
                     </div>
                 ) : (
                     <div className="h-full flex items-center justify-center text-gray-400 text-xs italic">
