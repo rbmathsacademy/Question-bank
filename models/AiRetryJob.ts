@@ -13,7 +13,7 @@ const AiRetryJobSchema = new mongoose.Schema({
     attemptNumber:  { type: Number, default: 1 },   // 1, 2, 3
     maxAttempts:    { type: Number, default: 3 },
     nextRetryAt:    { type: Date,   required: true },
-    status:         { type: String, enum: ['pending', 'success', 'failed'], default: 'pending', index: true },
+    status:         { type: String, enum: ['pending', 'processing', 'success', 'failed'], default: 'pending', index: true },
     lastError:      { type: String },
 }, { timestamps: true });
 

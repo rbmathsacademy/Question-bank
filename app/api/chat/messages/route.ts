@@ -5,6 +5,7 @@ import ChatMessage from '@/models/ChatMessage';
 import ChatBatchMetadata from '@/models/ChatBatchMetadata';
 import BatchStudent from '@/models/BatchStudent';
 import User from '@/models/User';
+import { processDueAiRetries } from '@/lib/retryAiWorker';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-dev-secret-change-this-in-prod';
 const key = new TextEncoder().encode(JWT_SECRET);
@@ -44,6 +45,7 @@ export async function GET(req: NextRequest) {
         const myPhoneNumber = (payload.phoneNumber || payload.userId) as string;
         
         await dbConnect();
+        processDueAiRetries().catch(err => console.error('[Retry worker trigger error]', err));
 
         // Fetch messages for the batch
         const rawMessages = await ChatMessage.find({ batchId })
